@@ -1,37 +1,30 @@
 <?php
 
-    require_once "../core/Seguridad.php";
-    Seguridad::exigirAutenticacion(true);
+require_once __DIR__ . '/../core/Seguridad.php';
+require_once __DIR__ . '/../controlador/Clientes.controlador.php';
+require_once __DIR__ . '/../modelos/Clientes.modelos.php';
 
-    require_once "../controlador/Clientes.controlador.php";
-    require_once "../modelos/Clientes.modelos.php";
+header('Content-Type: application/json; charset=utf-8');
+Seguridad::exigirAutenticacion(true);
 
-    
-    class ajaxClientes
-    {
-        public $IDcliente;
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !Seguridad::validarCsrf()) {
+    http_response_code(403);
+    echo json_encode(['error' => 'Solicitud inválida o vencida.']);
+    exit;
+}
 
-        public function ajaxEditarClientes()
-        {
-           $item="IDcliente";
-           $valor= $this->IDcliente;
-           
-           $respuesta= ControladorClientes::crtMostrarClientes($item, $valor);
-           header('Content-Type: application/json; charset=utf-8');
-           echo json_encode($respuesta);
-           
-        }
+$idCliente = filter_var($_POST['IDcliente'] ?? null, FILTER_VALIDATE_INT);
+if ($idCliente === false) {
+    http_response_code(422);
+    echo json_encode(['error' => 'El cliente solicitado no es válido.']);
+    exit;
+}
 
-    }
-    if(isset($_POST["IDcliente"]))
-    {
-        $editar=new ajaxClientes();
-        $editar->IDcliente=$_POST["IDcliente"];
-        $editar->ajaxEditarClientes ();
-    }
-    /* */
+$cliente = ControladorClientes::crtMostrarClientes('IDcliente', (int) $idCliente);
+if (!is_array($cliente)) {
+    http_response_code(404);
+    echo json_encode(['error' => 'Cliente no encontrado.']);
+    exit;
+}
 
-
-
-
-?>
+echo json_encode($cliente, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

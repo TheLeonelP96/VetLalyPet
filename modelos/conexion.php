@@ -4,7 +4,7 @@
         static public function Conectar()
         {
             $host = getenv('LALYPETS_DB_HOST') ?: 'localhost';
-            $base = getenv('LALYPETS_DB_NAME') ?: 'lalypets';
+            $base = getenv('LALYPETS_DB_NAME') ?: 'vetlalypets';
             $usuario = getenv('LALYPETS_DB_USER') ?: 'root';
             $password = getenv('LALYPETS_DB_PASSWORD');
             $password = $password === false ? '' : $password;

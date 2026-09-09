@@ -1,106 +1,108 @@
 <?php
 
-require_once "conexion.php";
- class ModeloClientes
+require_once __DIR__ . '/conexion.php';
+
+final class ModeloClientes
+{
+    private const FILTROS = [
+        'IDcliente' => 'IDcliente',
+        'habilitadoC' => 'habilitadoC',
+    ];
+
+    public static function mdlMostrarClientes(...$argumentos): mixed
     {
-        static public function MdlMostrarClientes($tabla,$item, $valor): mixed
-        {
-            if($item!=null)
-            {
-                $stmt=Conexion :: Conectar()-> prepare("SELECT * FROM $tabla WHERE $item=:$item ");
-                $stmt->bindParam(":".$item, $valor, PDO:: PARAM_STR);
-                $stmt->execute();
-
-                return $stmt->fetch();
-            }
-            else
-            {
-                $stmt=Conexion :: Conectar()-> prepare("SELECT * FROM $tabla ");
-                $stmt->execute();
-                return  $stmt->fetchAll();
-            }
-            $stmt ->close();
-
-            $stmt= null;
+        if (($argumentos[0] ?? null) === 'clientes' && count($argumentos) >= 3) {
+            $item = $argumentos[1];
+            $valor = $argumentos[2];
+        } else {
+            $item = $argumentos[0] ?? null;
+            $valor = $argumentos[1] ?? null;
         }
-        static public function  MdlCrearClientes($tabla,$datos)
-        {
-           
-            $stmt=Conexion :: Conectar()-> prepare("INSERT INTO $tabla(nombrec, apellidoc, telefono, registro)
-             VALUES (:nombrec, :apellidoc, :telefono, :registro)");
+        $sql = 'SELECT *, telefono_c AS telefono FROM clientes';
+        $condiciones = [];
+        $parametros = [];
 
-            $stmt-> bindParam(":nombrec",$datos["nombrec"],PDO::PARAM_STR );
-            $stmt-> bindParam(":apellidoc",$datos["apellidoc"],PDO::PARAM_STR );
-            $stmt-> bindParam(":telefono",$datos["telefono"],PDO::PARAM_STR );
-            $stmt-> bindParam(":registro",$datos["registro"],PDO::PARAM_STR );
-           
-
-            if($stmt->execute())
-            {
-                
-                return 'ok';
+        if ($item !== null) {
+            if (!isset(self::FILTROS[$item])) {
+                throw new InvalidArgumentException('Filtro de cliente no permitido.');
             }
-            else
-            {
-               return 'error';
-            }
-            $stmt ->close();
-
-            $stmt= null;
+            $condiciones[] = self::FILTROS[$item] . ' = :valor';
+            $parametros[':valor'] = $valor;
         }
-        static public function  MdlModificarClientes($tabla,$datos)
-        {
-           
-            $stmt=Conexion :: Conectar()-> prepare("UPDATE $tabla SET 
-            nombrec= :nombrec,
-            apellidoc= :apellidoc,
-            telefono= :telefono,
-            registro= :registro
-            WHERE IDcliente = :IDcliente ");
-
-            $stmt-> bindParam(":IDcliente",$datos["IDcliente"],PDO::PARAM_INT );
-            $stmt-> bindParam(":nombrec",$datos["nombrec"],PDO::PARAM_STR );
-            $stmt-> bindParam(":apellidoc",$datos["apellidoc"],PDO::PARAM_STR );
-            $stmt-> bindParam(":telefono",$datos["telefono"],PDO::PARAM_STR );
-            $stmt-> bindParam(":registro",$datos["registro"],PDO::PARAM_STR );
-           
-            
-           
-
-            if($stmt->execute())
-            {
-                
-                return 'ok';
-                  
-            }
-            else
-            {
-               return 'error';
-            }
-            $stmt ->close();
-
-            $stmt= null;
+        if ($condiciones !== []) {
+            $sql .= ' WHERE ' . implode(' AND ', $condiciones);
         }
-         static public function MdlEliminarClientes($tabla, $datos)
-        {
-            $stmt = Conexion::Conectar()->prepare("DELETE FROM $tabla WHERE IDcliente = :IDcliente ");
+        $sql .= ' ORDER BY nombrec, apellidoc';
 
-            $stmt->bindParam(":IDcliente", $datos, PDO::PARAM_INT);
-            if($stmt->execute())
-            {
-
-                return 'ok';
-
-            }
-            else
-            {
-                
-                return "error";
-            }
-            $stmt =null;
-        }
-
+        $stmt = Conexion::conectar()->prepare($sql);
+        $stmt->execute($parametros);
+        return $item === null ? $stmt->fetchAll() : ($stmt->fetch() ?: null);
     }
-  
-            
-?>
+
+    public static function mdlListarClientesHabilitados(): array
+    {
+        $stmt = Conexion::conectar()->query(
+            'SELECT *, telefono_c AS telefono FROM clientes
+             WHERE habilitadoC = 1 ORDER BY nombrec, apellidoc'
+        );
+        return $stmt->fetchAll();
+    }
+
+    public static function mdlCrearCliente(array $datos): string
+    {
+        try {
+            $stmt = Conexion::conectar()->prepare(
+                'INSERT INTO clientes (nombrec, apellidoc, telefono_c, registro, habilitadoC)
+                 VALUES (:nombre, :apellido, :telefono, :registro, 1)'
+            );
+            $stmt->execute(self::parametros($datos));
+            return 'ok';
+        } catch (PDOException $e) {
+            return 'error';
+        }
+    }
+
+    public static function mdlEditarCliente(array $datos): string
+    {
+        try {
+            $stmt = Conexion::conectar()->prepare(
+                'UPDATE clientes SET
+                    nombrec = :nombre,
+                    apellidoc = :apellido,
+                    telefono_c = :telefono,
+                    registro = :registro
+                 WHERE IDcliente = :IDcliente'
+            );
+            $parametros = self::parametros($datos);
+            $parametros[':IDcliente'] = (int) $datos['IDcliente'];
+            $stmt->execute($parametros);
+            return 'ok';
+        } catch (PDOException $e) {
+            return 'error';
+        }
+    }
+
+    public static function mdlActualizarEstadoCliente(int $idCliente, int $estado): string
+    {
+        $stmt = Conexion::conectar()->prepare(
+            'UPDATE clientes SET habilitadoC = :estado WHERE IDcliente = :IDcliente'
+        );
+        $stmt->execute([':estado' => $estado, ':IDcliente' => $idCliente]);
+        if ($stmt->rowCount() === 1) {
+            return 'ok';
+        }
+        $existe = self::mdlMostrarClientes('IDcliente', $idCliente);
+        return is_array($existe) ? 'sin_cambios' : 'no_encontrado';
+    }
+
+    private static function parametros(array $datos): array
+    {
+        return [
+            ':nombre' => $datos['nombre'],
+            ':apellido' => $datos['apellido'],
+            ':telefono' => $datos['telefono'],
+            ':registro' => $datos['registro'],
+        ];
+    }
+
+}

@@ -1,164 +1,116 @@
-//import { cache } from "react";
+(function ($) {
+    "use strict";
 
-$(".nuevaFoto").change(function()
-{
-    //validar el tipo de archivo de la foto
-    var imagen=this.files[0];
-    if(imagen["type"]!="image/jpeg" && imagen["type"]!= "image/png")
-    {
-        $(".nuevaFoto").val("");
-        swal({
-            title: "Error al subir!!",
-            text:"La imagen debe ser jpg o png",
-            type: "error",
-            //showConfirmButton: true,    
-            showConfirmButton: "cerrar"
+    function tokenCsrf() {
+        return $("meta[name='csrf-token']").attr("content") || "";
+    }
+
+    function alertaError(mensaje) {
+        Swal.fire({ icon: "error", title: "No se pudo completar", text: mensaje });
+    }
+
+    function normalizarTurno(turno) {
+        return String(turno || "").toLowerCase() === "horario continuo"
+            ? "Horario continuo"
+            : turno;
+    }
+
+    $(document).on("change", ".nuevaFoto", function () {
+        var input = this;
+        var archivo = input.files && input.files[0];
+        if (!archivo) {
+            return;
+        }
+        if (["image/jpeg", "image/png"].indexOf(archivo.type) === -1) {
+            input.value = "";
+            alertaError("La imagen debe ser JPG o PNG.");
+            return;
+        }
+        if (archivo.size > 2000000) {
+            input.value = "";
+            alertaError("La imagen no debe superar los 2 MB.");
+            return;
         }
 
-        );
-    }
-    else if(imagen["size"]>=2000000)
-    {
-        $(".nuevaFoto").val("");
-         swal({
-            title: "Error al subir!!",
-            text:"La imagen no debe pesar más de 2mb",
-            type: "error",
-            //showConfirmButton: true,
-            showConfirmButton: "cerrar"
-        }
+        var lector = new FileReader();
+        lector.onload = function (evento) {
+            $(input).closest(".form-group").find(".previsualizar").attr("src", evento.target.result);
+        };
+        lector.readAsDataURL(archivo);
+    });
 
-        );
-    }
-    else
-    {
-        var datosImagen = new FileReader;
-        datosImagen.readAsDataURL(imagen);
-        $(datosImagen).on("load", function(event)
-        {
-            var rutaImagen=event.target.result;
-            $(".previsualizar").attr("src", rutaImagen);
-        });
-    }
-});
+    $(document).on("click", ".btnEditUsuario", function () {
+        var datos = new FormData();
+        datos.append("IDusuario", $(this).data("id"));
+        datos.append("csrf_token", tokenCsrf());
 
-//editar usuario
-
-$(document).on("click", ".btnEditUsuario", function()
-{
-    var IDusuario = $(this).attr("data-id");
-
-    var datos = new FormData();
-
-    datos.append("IDusuario", IDusuario);
-
-    $.ajax({
-        url:"ajax/usuarios.ajax.php",
-        method: "POST",
-        data: datos,
-        cache: false,
-        contentType: false,
-        processData: false, 
-        dataType:"json",
-        success:function(respuesta)
-        {
-            console.log(respuesta);
-
-            $("#IDusuario").val(respuesta["IDusuario"]);
-            $("#editarNombre").val(respuesta["nombre"]);
-            $("#editarApellido").val(respuesta["apellido"]);
-            $("#editarUsuario").val(respuesta["Usunombre"]);
-            $("#editarTelefono").val(respuesta["telefono"]);//5
-            $("#editarEmail").val(respuesta["correo"]);
+        $.ajax({
+            url: "ajax/usuarios.ajax.php",
+            method: "POST",
+            data: datos,
+            cache: false,
+            contentType: false,
+            processData: false,
+            dataType: "json"
+        }).done(function (usuario) {
+            $("#IDusuario").val(usuario.IDusuario);
+            $("#editarNombre").val(usuario.nombre_U);
+            $("#editarApellido").val(usuario.apellido_U);
+            $("#editarTelefono").val(usuario.telefono_U);
+            $("#editarEmail").val(usuario.email_U);
             $("#editarPassword").val("");
-            $("#editarTurno").val(respuesta["turno"]);
-            $("#editarFoto").val(respuesta["foto"]);
-            $("#fotoActual").val(respuesta["foto"]);
+            $("#editarTurno").val(normalizarTurno(usuario.turno_U));
+            $("#editarRol").val(usuario.IDrol);
+            $("#modUsuario .previsualizar").attr(
+                "src",
+                usuario.foto || "vistas/js/img/img.jpg"
+            );
+            $("#modUsuario").modal("show");
+        }).fail(function (xhr) {
+            var mensaje = xhr.responseJSON && xhr.responseJSON.error
+                ? xhr.responseJSON.error
+                : "No fue posible cargar el usuario.";
+            alertaError(mensaje);
+        });
+    });
 
-            if(respuesta["foto"]!="")
-            {
-                $(".previsualizar").attr("src", respuesta["foto"]);
+    function enviarEstado(idUsuario, estado) {
+        var formulario = $("<form>", { method: "POST", action: "Usuarios" });
+        formulario.append($("<input>", { type: "hidden", name: "csrf_token", value: tokenCsrf() }));
+        formulario.append($("<input>", { type: "hidden", name: "IDusuario", value: idUsuario }));
+        formulario.append($("<input>", { type: "hidden", name: "estadoUsuario", value: estado }));
+        $(document.body).append(formulario);
+        formulario.trigger("submit");
+    }
+
+    $(document).on("click", ".btnEstadoUsuario", function () {
+        var idUsuario = $(this).data("id");
+        var estado = Number($(this).data("estado"));
+        var habilitar = estado === 1;
+
+        Swal.fire({
+            icon: "warning",
+            title: habilitar ? "¿Habilitar esta cuenta?" : "¿Deshabilitar esta cuenta?",
+            text: habilitar
+                ? "El usuario podrá volver a iniciar sesión."
+                : "El usuario no podrá iniciar sesión hasta que se habilite nuevamente.",
+            showCancelButton: true,
+            confirmButtonColor: habilitar ? "#26b99a" : "#d9534f",
+            cancelButtonColor: "#73879c",
+            confirmButtonText: habilitar ? "Sí, habilitar" : "Sí, deshabilitar",
+            cancelButtonText: "Cancelar"
+        }).then(function (resultado) {
+            if (resultado.isConfirmed) {
+                enviarEstado(idUsuario, estado);
             }
-            
+        });
+    });
+
+    $("#miModal, #modUsuario").on("hidden.bs.modal", function () {
+        var formulario = $(this).find("form")[0];
+        if (formulario) {
+            formulario.reset();
         }
-
+        $(this).find(".previsualizar").attr("src", "vistas/js/img/img.jpg");
     });
-});
-function enviarAccionProtegida(ruta, campos) {
-    var form = $("<form>", { method: "POST", action: ruta });
-    var token = $("meta[name='csrf-token']").attr("content");
-    form.append($("<input>", { type: "hidden", name: "csrf_token", value: token }));
-    Object.keys(campos).forEach(function(nombre) {
-        form.append($("<input>", { type: "hidden", name: nombre, value: campos[nombre] }));
-    });
-    $(document.body).append(form);
-    form.trigger("submit");
-}
-
-//Eliminar usuarios
-$(document).on("click", ".btnEliminarUsuario", function(){
-
-    var IDusuario = $(this).attr("IDusuario");
-
-    Swal.fire({
-    title: "Esta seguro de eliminar al usuario?",
-    text: "Aun puede cancelar la accion",
-    type:"warning" ,
-    showCancelButton: true,
-    cancelButtoncolor:"#3085d6",
-    cancelButtontext:"Cancelar",
-    confirmButtoncolor:"#d33",
-    confirmButtonText: "Eliminar"
-    
-    }).then(function (result) {
-        
-        if(result.isConfirmed)
-        {
-            enviarAccionProtegida("index.php?ruta=Usuarios", {IDusuario: IDusuario, estadoUsuario: 0});
-        }
-    });
-
-}); 
-//  Desabilitar usuario
-$(document).on("click", ".btnDesactivar", function(){
-
-    var IDusuario = $(this).attr("IDusuario");
-
-    Swal.fire({
-        title: "¿Está seguro de eliminar al usuario?",
-        text: "Aún puede cancelar la acción",
-        icon: "warning", // Cambiado 'type' por 'icon' que usa SweetAlert2
-        showCancelButton: true,
-        confirmButtonColor: "#d33", // C mayúscula
-        cancelButtonColor: "#3085d6",  // C mayúscula
-        confirmButtonText: "Eliminar",
-        cancelButtonText: "Cancelar" // T mayúscula
-    }).then(function (result) {
-        if(result.isConfirmed) {
-            enviarAccionProtegida("index.php?ruta=Usuarios", {IDusuario: IDusuario, estadoUsuario: 0});
-        }
-    });
-});
-$(document).on("click", ".btnActivar", function(){
-
-    var IDusuario = $(this).attr("IDusuario");
-
-    Swal.fire({
-    title: "Esta seguro de habilitar al usuario?",
-    text: "Aun puede cancelar la accion",
-    type:"warning" ,
-    showCancelButton: true,
-    cancelButtoncolor:"#3085d6",
-    cancelButtontext:"Cancelar",
-    confirmButtoncolor:"#d33",
-    confirmButtonText: "Restaurar"
-    
-    }).then(function (result) {
-        
-        if(result.isConfirmed)
-        {
-            enviarAccionProtegida("index.php?ruta=Usuarios", {IDusuario: IDusuario, estadoUsuario: 1});
-        }
-    });
-
-}); 
+})(jQuery);

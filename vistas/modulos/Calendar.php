@@ -1,264 +1,241 @@
 <?php
- $idRolActual = $_SESSION["IDrol"];
+$citas = ControladorCitas::ctrMostrarCitas();
+$clientes = ControladorClientes::ctrListarClientesHabilitados();
+$usuarios = array_values(array_filter(
+    ControladorUsuarios::ctrMostrarUsuarios(),
+    static fn(array $usuario): bool =>
+        (int) $usuario['IDrol'] === 2 && (int) $usuario['estado_U'] === 1
+));
+$servicios = ControladorCitas::ctrListarServiciosActivos();
+$mascotasDisponibles = array_values(array_filter(
+    ControladorMascotas::crtMostrarMascotas(),
+    static fn(array $mascota): bool =>
+        (int) $mascota['habilitadoM'] === 1 && (int) $mascota['habilitadoC'] === 1
+));
+$puedeCrear = $clientes !== [] && $mascotasDisponibles !== [] && $usuarios !== [] && $servicios !== [];
+$flashCita = $_SESSION['cita_flash'] ?? null;
+unset($_SESSION['cita_flash']);
 
-// Le pasamos el rol al controlador para que decida qué traer
-  $citas = ControladorCitas::ctrMostrarCitas();
-
-  $mascotas = ControladorMascotas::crtMostrarMascotas(null, null);
-  $clientes = ControladorClientes::crtMostrarClientes(null, null);
-  $usuarios = ControladorUsuarios::ctrMostrarUsuarios(null, null);
-
-  
-
+$opcionesClientes = static function (array $lista): void {
+    foreach ($lista as $cliente) {
+        echo '<option value="' . (int) $cliente['IDcliente'] . '">'
+            . Seguridad::escapar($cliente['nombrec'] . ' ' . $cliente['apellidoc'])
+            . '</option>';
+    }
+};
+$opcionesVeterinarios = static function (array $lista): void {
+    foreach ($lista as $usuario) {
+        echo '<option value="' . (int) $usuario['IDusuario'] . '">'
+            . Seguridad::escapar($usuario['nombre_U'] . ' ' . $usuario['apellido_U'])
+            . '</option>';
+    }
+};
+$opcionesServicios = static function (array $lista): void {
+    foreach ($lista as $servicio) {
+        echo '<option value="' . (int) $servicio['IDservicio'] . '">'
+            . Seguridad::escapar($servicio['tipoServicio'])
+            . '</option>';
+    }
+};
 ?>
 <script>
-  // 2. Pasamos el arreglo de PHP a un objeto JSON real de JavaScript
-  window.citasDelServidor = <?php echo json_encode($citas, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+window.citasDelServidor = <?php echo json_encode(
+    $citas,
+    JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
+); ?>;
+window.mascotasParaCitas = <?php echo json_encode(array_map(
+    static fn(array $mascota): array => [
+        'IDmascota' => (int) $mascota['IDmascota'],
+        'IDcliente' => (int) $mascota['IDcliente'],
+        'nombrem' => $mascota['nombrem'],
+    ],
+    $mascotasDisponibles
+), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+window.configuracionCitas = {
+    puedeCrear: <?php echo $puedeCrear ? 'true' : 'false'; ?>,
+    csrf: <?php echo json_encode(Seguridad::tokenCsrf(), JSON_HEX_TAG | JSON_HEX_AMP); ?>
+};
 </script>
+
 <div class="right_col" role="main">
-  <?php if (!empty($_SESSION['cita_flash'])): ?>
-    <?php $flashCita = $_SESSION['cita_flash']; unset($_SESSION['cita_flash']); ?>
-    <div class="alert alert-<?php echo Seguridad::escapar($flashCita['tipo']); ?> alert-dismissible fade in" role="alert">
-      <button type="button" class="close" data-dismiss="alert" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button>
-      <?php echo Seguridad::escapar($flashCita['mensaje']); ?>
-    </div>
-  <?php endif; ?>
-  <div class="">
     <div class="page-title">
-      <div class="title_left">
-        <h3>Calendario <small></small></h3>
-      </div>
-
-      <div class="title_right">
-        <div class="col-md-5 col-sm-5 col-xs-12 form-group pull-right top_search">
-          <div class="input-group">
-            <input type="text" class="form-control" placeholder="Buscar cita...">
-            <span class="input-group-btn">
-              <button class="btn btn-default" type="button">Go!</button>
-            </span>
-          </div>
+        <div class="title_left">
+            <h3>Calendario de citas <small>Atención de 07:00 a 19:00</small></h3>
         </div>
-      </div>
     </div>
-
     <div class="clearfix"></div>
 
+    <?php if (is_array($flashCita)): ?>
+        <div class="alert alert-<?php echo Seguridad::escapar($flashCita['tipo']); ?> alert-dismissible" role="alert">
+            <button type="button" class="close" data-dismiss="alert">&times;</button>
+            <?php echo Seguridad::escapar($flashCita['mensaje']); ?>
+        </div>
+    <?php endif; ?>
+
+    <?php if (!$puedeCrear): ?>
+        <div class="alert alert-warning">
+            Para programar citas necesita al menos un cliente con mascota habilitada, un veterinario habilitado y un servicio activo.
+        </div>
+    <?php endif; ?>
+
     <div class="row">
-      <div class="col-md-12">
-        <div class="x_panel">
-          <div class="x_title">
-            <h2>Listado<small>Citas</small></h2>
-            <ul class="nav navbar-right panel_toolbox">
-              <li><a class="collapse-link"><i class="fa fa-chevron-up"></i></a>
-              </li>
-              <li class="dropdown">
-                <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false"><i class="fa fa-wrench"></i></a>
-                <ul class="dropdown-menu" role="menu">
-                  <li><a href="#">Settings 1</a>
-                  </li>
-                  <li><a href="#">Settings 2</a>
-                  </li>
-                </ul>
-              </li>
-              <li><a class="close-link"><i class="fa fa-close"></i></a>
-              </li>
-            </ul>
-            <div class="clearfix"></div>
-          </div>
-          <div class="x_content">
-
-            <div id="calendar"></div>
-
-          </div>
+        <div class="col-md-12">
+            <div class="x_panel">
+                <div class="x_title">
+                    <h2>Agenda <small>Seleccione un bloque libre para programar una cita</small></h2>
+                    <div class="clearfix"></div>
+                </div>
+                <div class="x_content">
+                    <p>
+                        <span class="label label-primary">Pendiente</span>
+                        <span class="label label-danger">Cancelada</span>
+                        <span class="label label-success">Completada</span>
+                    </p>
+                    <div id="calendar"></div>
+                </div>
+            </div>
         </div>
-      </div>
     </div>
-  </div>
 </div>
+
 <div id="modalAgregarCita" class="modal fade" role="dialog">
-  <div class="modal-dialog">
-    <div class="modal-content">
-
-              <form role="form" method="post" id="formAgregarCita">
-              <?php echo Seguridad::campoCsrf(); ?>
-
-        <div class="modal-header" style="background:#3c8dbc; color:white">
-          <button type="button" class="close" data-dismiss="modal">&times;</button>
-          <h4 class="modal-title">Programar Nueva Cita</h4>
-        </div>
-
-        <div class="modal-body">
-          <div class="box-body">
-
-            <input type="hidden" id="fechaCitaCrear" name="fechaCitaCrear"> 
-            <div class="form-group">
-              <label>Motivo de la Cita</label>
-              <input type="text" class="form-control input-lg" name="nuevoMotivo" placeholder="Ej: Consulta General" required>
+    <div class="modal-dialog"><div class="modal-content">
+        <form method="post" action="Calendar" id="formAgregarCita">
+            <?php echo Seguridad::campoCsrf(); ?>
+            <input type="hidden" id="fechaCitaCrear" name="fechaCitaCrear">
+            <div class="modal-header" style="background:#3c8dbc;color:white">
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+                <h4 class="modal-title">Programar nueva cita</h4>
             </div>
-
-          <div class="form-group">
-            <label>Hora de la Cita</label>
-            <input type="time" class="form-control input-lg" name="seleccionarHora" id="seleccionarHora" 
-                  min="07:00" max="18:30" step="1800" required>
-            <small id="disponibilidadNueva" class="help-block"></small>
-          </div>
-
-            <!-- Seleccionar Cliente -->
-            <div class="form-group">
-              <label>Seleccionar Propietario / Cliente</label>
-              <div class="input-group">
-                <span class="input-group-addon"><i class="fa fa-user"></i></span>
-                <select class="form-control input-lg" id="seleccionarCliente" name="seleccionarCliente" required>
-                  <option value="" selected disabled hidden>Seleccione el cliente</option>
-                  <?php
-                    foreach ($clientes as $key => $value) {
-                  echo '<option value="'.(int) $value["IDcliente"].'">'.Seguridad::escapar($value["nombrec"]).'</option>';
-                    }
-                  ?>
-                </select>
-              </div>
+            <div class="modal-body"><div class="box-body">
+                <div class="alert alert-info">
+                    Fecha seleccionada: <strong id="fechaCitaCrearTexto"></strong>
+                </div>
+                <div class="form-group">
+                    <label>Motivo</label>
+                    <input type="text" class="form-control input-lg" name="nuevoMotivo"
+                           maxlength="75" placeholder="Ej.: Control general" required>
+                </div>
+                <div class="form-group">
+                    <label>Servicio</label>
+                    <select class="form-control input-lg" id="nuevoServicio" name="nuevoServicio" required>
+                        <option value="" selected disabled>Seleccionar servicio</option>
+                        <?php $opcionesServicios($servicios); ?>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Hora</label>
+                    <input type="time" class="form-control input-lg" name="seleccionarHora"
+                           id="seleccionarHora" min="07:00" max="18:30" step="1800" required>
+                    <small id="disponibilidadNueva" class="help-block"></small>
+                </div>
+                <div class="form-group">
+                    <label>Propietario</label>
+                    <select class="form-control input-lg" id="seleccionarCliente" required>
+                        <option value="" selected disabled>Seleccionar cliente</option>
+                        <?php $opcionesClientes($clientes); ?>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Mascota</label>
+                    <select class="form-control input-lg" id="seleccionarMascota"
+                            name="seleccionarMascota" required disabled>
+                        <option value="">Seleccione primero un cliente</option>
+                    </select>
+                    <small id="mensajeMascotasCrear" class="help-block"></small>
+                </div>
+                <div class="form-group">
+                    <label>Veterinario</label>
+                    <select class="form-control input-lg" id="nuevoUsuario" name="nuevoUsuario" required>
+                        <option value="" selected disabled>Seleccionar veterinario</option>
+                        <?php $opcionesVeterinarios($usuarios); ?>
+                    </select>
+                </div>
+            </div></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default pull-left" data-dismiss="modal">Cerrar</button>
+                <a href="#" id="btnRegistrarVacunacionCita" class="btn btn-primary" style="display:none">
+                    <i class="fa fa-medkit"></i> Registrar vacunación
+                </a>
+                <a href="#" id="btnRegistrarPagoCita" class="btn btn-info" style="display:none">
+                    <i class="fa fa-money"></i> Registrar pago
+                </a>
+                <button type="submit" class="btn btn-primary" id="btnGuardarCita" disabled>Guardar cita</button>
             </div>
-
-            <!-- Seleccionar Mascota (Inicia deshabilitado o vacío) -->
-            <div class="form-group">
-              <label>Seleccionar Mascota</label>
-              <div class="input-group">
-                <span class="input-group-addon"><i class="fa fa-paw"></i></span>
-                <select class="form-control input-lg" id="seleccionarMascota" name="seleccionarMascota" required>
-                  <option value="" selected disabled hidden>Seleccione primero un cliente</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label>Atendido por (Usuario)</label>
-              <div class="input-group">
-                <span class="input-group-addon"><i class="fa fa-users"></i></span>
-                <select class="form-control input-lg" id="nuevoUsuario" name="nuevoUsuario" required>
-                  <option value="">Seleccione el usuario</option>
-                  <?php
-                  foreach ($usuarios as $key => $value) {
-                    if ($value["IDrol"] == 2) 
-                    {
-            
-                    echo '<option value="'.(int) $value["IDusuario"].'">'.Seguridad::escapar($value["nombre"]).'</option>';
-                      
-                    }
-                  }
-                  ?>
-                </select>
-              </div>
-            </div>
-
-          </div>
-        </div>
-
-        <div class="modal-footer">
-          <button type="button" class="btn btn-default pull-left" data-dismiss="modal">Salir</button>
-          <button type="submit" class="btn btn-primary" id="btnGuardarCita">Guardar Cita</button>
-        </div>
-
-      </form>
-
-    </div>
-  </div>
+        </form>
+    </div></div>
 </div>
+
 <div id="modalEditarCita" class="modal fade" role="dialog">
-  <div class="modal-dialog">
-    <div class="modal-content">
-
-            <form role="form" method="post" id="formEditarCita">
-              <?php echo Seguridad::campoCsrf(); ?>
-
-        <div class="modal-header" style="background:#f39c12; color:white">
-          <button type="button" class="close" data-dismiss="modal">&times;</button>
-          <h4 class="modal-title">Editar o Reprogramar Cita</h4>
-        </div>
-
-        <div class="modal-body">
-          <div class="box-body">
-
+    <div class="modal-dialog"><div class="modal-content">
+        <form method="post" action="Calendar" id="formEditarCita">
+            <?php echo Seguridad::campoCsrf(); ?>
             <input type="hidden" id="idCitaEditar" name="idCitaEditar">
-            
-            <div class="form-group">
-              <label>Motivo de la Cita</label>
-              <input type="text" class="form-control input-lg" id="editarMotivo" name="editarMotivo" required>
+            <div class="modal-header" style="background:#f39c12;color:white">
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+                <h4 class="modal-title">Detalle de la cita</h4>
             </div>
-
-            <div class="form-group col-md-6 col-sm-6 col-xs-12">
-              <label>Nueva Hora</label>
-              <input type="time" class="form-control input-lg" id="editarHora" name="editarHora" 
-               min="07:00" max="18:30" step="1800" required>
-              <small id="disponibilidadEdicion" class="help-block"></small>
+            <div class="modal-body"><div class="box-body">
+                <p>Estado: <strong id="estadoCitaTexto"></strong></p>
+                <div class="form-group">
+                    <label>Motivo</label>
+                    <input type="text" class="form-control input-lg" id="editarMotivo"
+                           name="editarMotivo" maxlength="75" required>
+                </div>
+                <div class="form-group">
+                    <label>Servicio</label>
+                    <select class="form-control input-lg" id="editarServicio" name="editarServicio" required>
+                        <option value="" disabled>Seleccionar servicio</option>
+                        <?php $opcionesServicios($servicios); ?>
+                    </select>
+                </div>
+                <div class="row">
+                    <div class="form-group col-md-6">
+                        <label>Fecha</label>
+                        <input type="date" class="form-control input-lg" id="fechaCitaEditar"
+                               name="fechaCitaEditar" min="<?php echo date('Y-m-d'); ?>" required>
+                    </div>
+                    <div class="form-group col-md-6">
+                        <label>Hora</label>
+                        <input type="time" class="form-control input-lg" id="editarHora"
+                               name="editarHora" min="07:00" max="18:30" step="1800" required>
+                    </div>
+                </div>
+                <small id="disponibilidadEdicion" class="help-block"></small>
+                <div class="form-group">
+                    <label>Propietario</label>
+                    <select class="form-control input-lg" id="editarCliente" required>
+                        <option value="" disabled>Seleccionar cliente</option>
+                        <?php $opcionesClientes($clientes); ?>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Mascota</label>
+                    <select class="form-control input-lg" id="editarMascotaSelect"
+                            name="editarMascota" required>
+                        <option value="">Seleccionar mascota</option>
+                    </select>
+                    <small id="mensajeMascotasEditar" class="help-block"></small>
+                </div>
+                <div class="form-group">
+                    <label>Veterinario</label>
+                    <select class="form-control input-lg" id="editarUsuario" name="editarUsuario" required>
+                        <option value="" disabled>Seleccionar veterinario</option>
+                        <?php $opcionesVeterinarios($usuarios); ?>
+                    </select>
+                </div>
+            </div></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default pull-left" data-dismiss="modal">Cerrar</button>
+                <button type="submit" id="btnAccionAlterna" class="btn"
+                        name="btnAccionCita" value="cancelar" formnovalidate></button>
+                <button type="submit" id="btnCompletarCita" class="btn btn-success"
+                        name="btnAccionCita" value="completar" formnovalidate>
+                    <i class="fa fa-check"></i> Completar
+                </button>
+                <button type="submit" class="btn btn-warning" id="btnGuardarCambios"
+                        name="btnAccionCita" value="guardar">Guardar cambios</button>
             </div>
-            <div class="form-group col-md-6 col-sm-6 col-xs-12">
-              <label>Modificar Fecha (Día)</label>
-              <div class="input-group">
-                <span class="input-group-addon"><i class="fa fa-calendar"></i></span>
-                <input type="date" class="form-control input-lg" id="fechaCitaEditar" name="fechaCitaEditar" required>
-              </div>
-            </div>
-            <div class="form-group">
-              <label>Propietario / Cliente</label>
-              <div class="input-group">
-                <span class="input-group-addon"><i class="fa fa-user"></i></span>
-                <select class="form-control input-lg" id="editarCliente" name="editarCliente" required>
-                  <option value="" selected disabled hidden>Seleccione el cliente</option>
-                  <?php
-                  foreach ($clientes as $key => $value) {
-                  echo '<option value="'.(int) $value["IDcliente"].'">'.Seguridad::escapar($value["nombrec"]).'</option>';
-                  }
-                  ?>
-                </select>
-              </div>
-            </div>
-
-
-            <div class="form-group">
-              <label>Mascota</label>
-              <div class="input-group">
-                <span class="input-group-addon"><i class="fa fa-paw"></i></span>
-                <select class="form-control input-lg" id="editarMascotaSelect" name="editarMascota" required>
-                  <option value="" selected disabled hidden>Seleccione la mascota</option>
-                 
-                </select>
-              </div>
-            </div>
-            <!-- SELECT DE MASCOTA EN EL MODAL DE EDITAR -->
-
-
-           
-            <div class="form-group">
-              <label>Veterinario Asignado</label>
-              <div class="input-group">
-                <span class="input-group-addon"><i class="fa fa-user-md"></i></span>
-                <select class="form-control input-lg" id="editarUsuario" name="editarUsuario" required>
-                  <option value="" selected disabled hidden>Seleccione el veterinario</option>
-                  <?php
-                  foreach ($usuarios as $key => $value) {
-                    if ( $value["IDrol"] == 2) {
-                      echo '<option value="'.(int) $value["IDusuario"].'">'.Seguridad::escapar($value["nombre"]).'</option>';
-                    }
-                  }
-                  ?>
-                </select>
-              </div>
-            </div>
-
-          </div>
-        </div>
-
-        <div class="modal-footer">
-          <button type="button" class="btn btn-default pull-left" data-dismiss="modal">Salir</button>
-          
-          <button type="submit" id="btnAccionAlterna" class="btn" name="btnAccionCita" value="cancelar" formnovalidate></button>
-          
-          <button type="submit" id="btnCompletarCita" class="btn btn-success" name="btnAccionCita" value="completar"><i class="fa fa-check"></i> Completar Cita</button>
-          <button type="submit" class="btn btn-warning" id="btnGuardarCambios" name="btnAccionCita" value="guardar">Guardar Cambios</button>
-        </div>
-
-      </form>
-
-    </div>
-  </div>
+        </form>
+    </div></div>
 </div>

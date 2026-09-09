@@ -1,51 +1,49 @@
 <?php
 
-    require_once "../core/Seguridad.php";
-    Seguridad::exigirAutenticacion(true);
+require_once __DIR__ . '/../core/Seguridad.php';
+require_once __DIR__ . '/../controlador/Mascotas.controlador.php';
+require_once __DIR__ . '/../modelos/Mascotas.modelos.php';
+require_once __DIR__ . '/../modelos/Clientes.modelos.php';
 
-    require_once "../controlador/Mascotas.controlador.php";
-    require_once "../modelos/Mascotas.modelos.php";
+header('Content-Type: application/json; charset=utf-8');
+Seguridad::exigirAutenticacion(true);
 
-    class AjaxMascotas
-    {
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !Seguridad::validarCsrf()) {
+    http_response_code(403);
+    echo json_encode(['error' => 'Solicitud inválida o vencida.']);
+    exit;
+}
 
-        // 1. Variable para el método de editar que ya tenías
-        public $IDmascota;
-
-        public function ajaxEditarMascota()
-        {
-            $item = "IDmascota";
-            $valor = $this->IDmascota;
-            
-            $respuesta = ControladorMascotas::crtMostrarMascotas($item, $valor);
-            echo json_encode($respuesta);
-        }
-
-        // ========================================================
-        // NUEVA VARIABLE Y MÉTODO PARA EL SELECT DINÁMICO EN CITAS
-        // ========================================================
-        public $IDcliente;
-
-        public function ajaxListarMascotasPorCliente() {
-            $valor = $this->IDcliente;
-            // Llamamos al método del modelo que filtra por dueño
-           $respuesta = ModeloMascotas::mdlMostrarMascotasPorCliente("mascotas", "IDcliente", $valor);
-            echo json_encode($respuesta);
-        }
-    }   
-    if (isset($_POST["IDmascota"])) 
-    {
-
-        $editar = new AjaxMascotas();
-        $editar->IDmascota = $_POST["IDmascota"];
-        $editar->ajaxEditarMascota();
+if (isset($_POST['IDmascota'])) {
+    $idMascota = filter_var($_POST['IDmascota'], FILTER_VALIDATE_INT);
+    if ($idMascota === false) {
+        http_response_code(422);
+        echo json_encode(['error' => 'La mascota solicitada no es válida.']);
+        exit;
     }
-
-    // Acción 2: Si lo que viene es el IDcliente enviado desde el calendario de citas
-    if (isset($_POST["IDcliente"])) {
-        $listar = new AjaxMascotas();
-        $listar->IDcliente = $_POST["IDcliente"];
-        $listar->ajaxListarMascotasPorCliente();
+    $mascota = ControladorMascotas::crtMostrarMascotas('IDmascota', (int) $idMascota);
+    if (!is_array($mascota)) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Mascota no encontrada.']);
+        exit;
     }
+    echo json_encode($mascota, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
 
-?>
+if (isset($_POST['IDcliente'])) {
+    $idCliente = filter_var($_POST['IDcliente'], FILTER_VALIDATE_INT);
+    if ($idCliente === false) {
+        http_response_code(422);
+        echo json_encode(['error' => 'El cliente solicitado no es válido.']);
+        exit;
+    }
+    echo json_encode(
+        ModeloMascotas::mdlListarMascotasPorCliente((int) $idCliente),
+        JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+    );
+    exit;
+}
+
+http_response_code(422);
+echo json_encode(['error' => 'No se indicó una operación válida.']);

@@ -1,0 +1,77 @@
+<mxfile host="app.diagrams.net" agent="Codex" version="24.7.17">
+  <diagram id="modelo-logico" name="Modelo lógico">
+    <mxGraphModel dx="1800" dy="1100" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="title" value="&lt;b&gt;LalyPets — Modelo lógico de datos&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#666666&quot;&gt;PK = clave primaria · FK = clave foránea · UQ = único · NN = obligatorio&lt;/font&gt;" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;" vertex="1" parent="1">
+          <mxGeometry x="30" y="20" width="780" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="cliente" value="&lt;b&gt;CLIENTE&lt;/b&gt;&lt;hr&gt;&lt;div style=&quot;text-align:left&quot;&gt;&lt;b&gt;PK&lt;/b&gt; ID_Cliente : INT&lt;br&gt;Nombre_Cliente : VARCHAR(100) NN&lt;br&gt;Apellido_Cliente : VARCHAR(100) NN&lt;br&gt;Telefono_Cliente : VARCHAR(20) NN&lt;br&gt;Estado_Cliente : BOOLEAN NN&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="30" y="100" width="285" height="165" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="mascota" value="&lt;b&gt;MASCOTA&lt;/b&gt;&lt;hr&gt;&lt;div style=&quot;text-align:left&quot;&gt;&lt;b&gt;PK&lt;/b&gt; ID_Mascota : INT&lt;br&gt;&lt;b&gt;FK&lt;/b&gt; ID_Cliente : INT NN&lt;br&gt;&lt;b&gt;FK&lt;/b&gt; ID_Raza : INT NN&lt;br&gt;Nombre_Mascota : VARCHAR(100) NN&lt;br&gt;Estado_Mascota : BOOLEAN NN&lt;br&gt;Peso_Mascota : DECIMAL(6,2) NN&lt;br&gt;Sexo_Mascota : VARCHAR(20) NN&lt;br&gt;FechaNac_Mascota : DATE NN&lt;br&gt;FechaReg_Mascota : DATE NN&lt;br&gt;Color_Mascota : VARCHAR(50)&lt;br&gt;Descripcion : VARCHAR(255)&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="380" y="90" width="310" height="275" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="cita" value="&lt;b&gt;CITA&lt;/b&gt;&lt;hr&gt;&lt;div style=&quot;text-align:left&quot;&gt;&lt;b&gt;PK&lt;/b&gt; ID_Cita : INT&lt;br&gt;&lt;b&gt;FK&lt;/b&gt; ID_Mascota : INT NN&lt;br&gt;&lt;b&gt;FK&lt;/b&gt; ID_Usuario : INT NN&lt;br&gt;&lt;b&gt;FK&lt;/b&gt; ID_Servicio : INT NN&lt;br&gt;Fecha_Cita : DATE NN&lt;br&gt;Hora_Cita : TIME NN&lt;br&gt;Estado_Cita : VARCHAR(20) NN&lt;br&gt;Motivo_Cita : VARCHAR(255) NN&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="770" y="100" width="300" height="220" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="usuario" value="&lt;b&gt;USUARIO&lt;/b&gt;&lt;hr&gt;&lt;div style=&quot;text-align:left&quot;&gt;&lt;b&gt;PK&lt;/b&gt; ID_Usuario : INT&lt;br&gt;&lt;b&gt;FK&lt;/b&gt; ID_Rol : INT NN&lt;br&gt;Nombre_Usuario : VARCHAR(100) NN&lt;br&gt;Apellido_Usuario : VARCHAR(100) NN&lt;br&gt;Telefono_Usuario : VARCHAR(20) NN&lt;br&gt;Email : VARCHAR(254) NN UQ&lt;br&gt;Password : VARCHAR(255) NN&lt;br&gt;Foto_Usuario : VARCHAR(255)&lt;br&gt;Turno_Usuario : VARCHAR(30)&lt;br&gt;Estado_Usuario : BOOLEAN NN&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="1170" y="90" width="315" height="265" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="especie" value="&lt;b&gt;ESPECIE&lt;/b&gt;&lt;hr&gt;&lt;div style=&quot;text-align:left&quot;&gt;&lt;b&gt;PK&lt;/b&gt; ID_Especie : INT&lt;br&gt;Nombre_Especie : VARCHAR(80) NN UQ&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="30" y="390" width="285" height="105" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="raza" value="&lt;b&gt;RAZA&lt;/b&gt;&lt;hr&gt;&lt;div style=&quot;text-align:left&quot;&gt;&lt;b&gt;PK&lt;/b&gt; ID_Raza : INT&lt;br&gt;&lt;b&gt;FK&lt;/b&gt; ID_Especie : INT NN&lt;br&gt;Nombre_Raza : VARCHAR(100) NN&lt;br&gt;&lt;b&gt;UQ&lt;/b&gt; (ID_Especie, Nombre_Raza)&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="30" y="545" width="285" height="145" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="vacuna" value="&lt;b&gt;VACUNA&lt;/b&gt;&lt;hr&gt;&lt;div style=&quot;text-align:left&quot;&gt;&lt;b&gt;PK&lt;/b&gt; ID_Vacuna : INT&lt;br&gt;&lt;b&gt;FK&lt;/b&gt; ID_Especie : INT NN&lt;br&gt;Nombre_Vacuna : VARCHAR(100) NN&lt;br&gt;Descripcion : VARCHAR(255) NN&lt;br&gt;Stock : INT NN&lt;br&gt;Precio_Vacuna : DECIMAL(10,2) NN&lt;br&gt;Estado_Vacuna : BOOLEAN NN&lt;br&gt;&lt;b&gt;UQ&lt;/b&gt; (ID_Especie, Nombre_Vacuna)&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="380" y="430" width="310" height="220" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="esquema" value="&lt;b&gt;ESQUEMA_VACUNACION&lt;/b&gt;&lt;hr&gt;&lt;div style=&quot;text-align:left&quot;&gt;&lt;b&gt;PK&lt;/b&gt; ID_EsquemaVac : INT&lt;br&gt;&lt;b&gt;FK&lt;/b&gt; ID_Especie : INT NN&lt;br&gt;&lt;b&gt;FK&lt;/b&gt; ID_Vacuna : INT NN&lt;br&gt;Edad_Aplicacion_Meses : SMALLINT NN&lt;br&gt;Numero_Dosis : SMALLINT NN&lt;br&gt;&lt;b&gt;UQ&lt;/b&gt; (ID_Especie, ID_Vacuna, Numero_Dosis)&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="30" y="755" width="310" height="175" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="historial" value="&lt;b&gt;HISTORIAL_VAC&lt;/b&gt;&lt;hr&gt;&lt;div style=&quot;text-align:left&quot;&gt;&lt;b&gt;PK&lt;/b&gt; ID_HistorialVac : INT&lt;br&gt;&lt;b&gt;FK&lt;/b&gt; ID_Cita : INT NN&lt;br&gt;&lt;b&gt;FK&lt;/b&gt; ID_Vacuna : INT NN&lt;br&gt;Numero_Dosis_Aplicada : SMALLINT NN&lt;br&gt;Fecha_Aplicacion : DATE NN&lt;br&gt;Proxima_Aplicacion : DATE&lt;br&gt;Observaciones : VARCHAR(255)&lt;br&gt;&lt;b&gt;UQ&lt;/b&gt; (ID_Cita, ID_Vacuna, Numero_Dosis_Aplicada)&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="770" y="410" width="320" height="220" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="servicio" value="&lt;b&gt;SERVICIO&lt;/b&gt;&lt;hr&gt;&lt;div style=&quot;text-align:left&quot;&gt;&lt;b&gt;PK&lt;/b&gt; ID_Servicio : INT&lt;br&gt;Tipo_Servicio : VARCHAR(100) NN UQ&lt;br&gt;Descripcion : VARCHAR(255) NN&lt;br&gt;Precio : DECIMAL(10,2) NN&lt;br&gt;Estado_Servicio : BOOLEAN NN&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="770" y="740" width="300" height="160" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="pago" value="&lt;b&gt;PAGO&lt;/b&gt;&lt;hr&gt;&lt;div style=&quot;text-align:left&quot;&gt;&lt;b&gt;PK&lt;/b&gt; ID_Pago : INT&lt;br&gt;&lt;b&gt;FK UQ&lt;/b&gt; ID_Cita : INT NN&lt;br&gt;&lt;b&gt;FK&lt;/b&gt; ID_Usuario_Registro : INT NN&lt;br&gt;Monto : DECIMAL(10,2) NN&lt;br&gt;Metodo_Pago : VARCHAR(30) NN&lt;br&gt;Referencia_Pago : VARCHAR(100)&lt;br&gt;Fecha_Pago : DATETIME NN&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="1170" y="420" width="315" height="205" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="rol" value="&lt;b&gt;ROL&lt;/b&gt;&lt;hr&gt;&lt;div style=&quot;text-align:left&quot;&gt;&lt;b&gt;PK&lt;/b&gt; ID_Rol : INT&lt;br&gt;Tipo_Rol : VARCHAR(50) NN UQ&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="1185" y="755" width="285" height="105" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e_cliente_mascota" value="posee" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERone;startFill=0;endArrow=ERzeroToMany;endFill=0;" edge="1" parent="1" source="cliente" target="mascota"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_especie_raza" value="clasifica" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERone;startFill=0;endArrow=ERzeroToMany;endFill=0;" edge="1" parent="1" source="especie" target="raza"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_raza_mascota" value="pertenece" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERone;startFill=0;endArrow=ERzeroToMany;endFill=0;" edge="1" parent="1" source="raza" target="mascota"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_mascota_cita" value="recibe" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERone;startFill=0;endArrow=ERzeroToMany;endFill=0;" edge="1" parent="1" source="mascota" target="cita"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_usuario_cita" value="atiende" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERone;startFill=0;endArrow=ERzeroToMany;endFill=0;" edge="1" parent="1" source="usuario" target="cita"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_servicio_cita" value="corresponde" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERone;startFill=0;endArrow=ERzeroToMany;endFill=0;" edge="1" parent="1" source="servicio" target="cita"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_cita_pago" value="genera" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERone;startFill=0;endArrow=ERzeroToOne;endFill=0;" edge="1" parent="1" source="cita" target="pago"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_usuario_pago" value="registra" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERone;startFill=0;endArrow=ERzeroToMany;endFill=0;" edge="1" parent="1" source="usuario" target="pago"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_cita_historial" value="registra" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERone;startFill=0;endArrow=ERzeroToMany;endFill=0;" edge="1" parent="1" source="cita" target="historial"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_vacuna_historial" value="se aplica" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERone;startFill=0;endArrow=ERzeroToMany;endFill=0;" edge="1" parent="1" source="vacuna" target="historial"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_especie_vacuna" value="admite" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERone;startFill=0;endArrow=ERzeroToMany;endFill=0;" edge="1" parent="1" source="especie" target="vacuna"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_especie_esquema" value="define" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERone;startFill=0;endArrow=ERzeroToMany;endFill=0;" edge="1" parent="1" source="especie" target="esquema"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_vacuna_esquema" value="programa" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERone;startFill=0;endArrow=ERzeroToMany;endFill=0;" edge="1" parent="1" source="vacuna" target="esquema"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_rol_usuario" value="asigna" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERone;startFill=0;endArrow=ERzeroToMany;endFill=0;" edge="1" parent="1" source="rol" target="usuario"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

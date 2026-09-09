@@ -1,12 +1,12 @@
 <?php
 
-class ControladorCitas
+final class ControladorCitas
 {
     private const ESTADO_PENDIENTE = 'Pendiente';
     private const ESTADO_CANCELADA = 'Cancelada';
     private const ESTADO_COMPLETADA = 'Completada';
-    private const CLAVE_CONFIRMAR_REACTIVACION = 'cita_confirmar_reactivacion';
-    private const VIGENCIA_CONFIRMACION = 300;
+    private const HORA_APERTURA = 7;
+    private const HORA_CIERRE = 19;
 
     public static function ctrProcesarSolicitud(): void
     {
@@ -19,32 +19,180 @@ class ControladorCitas
         }
     }
 
-    private static function redirigirCalendario(string $tipo, string $mensaje): void
+    public static function ctrMostrarCitas($item = null, $valor = null): mixed
     {
-        $_SESSION['cita_flash'] = ['tipo' => $tipo, 'mensaje' => $mensaje];
-        header('Location: Calendar');
-        exit;
+        return ModeloCitas::mdlMostrarCitas($item, $valor);
     }
 
-    private static function normalizarFechaHorario($fecha, $hora, bool $permitirPasado = false): ?string
+    public static function ctrListarServiciosActivos(): array
+    {
+        return ModeloCitas::mdlListarServiciosActivos();
+    }
+
+    public static function ctrEvaluarDisponibilidad(
+        $idUsuario,
+        $fecha,
+        $hora,
+        $idCitaExcluir = null
+    ): array {
+        $idUsuario = filter_var($idUsuario, FILTER_VALIDATE_INT);
+        $idExcluir = ($idCitaExcluir === null || $idCitaExcluir === '')
+            ? null
+            : filter_var($idCitaExcluir, FILTER_VALIDATE_INT);
+        $fechaCompleta = self::normalizarFechaHorario($fecha, $hora);
+        $veterinarioValido = $idUsuario !== false && self::veterinarioValido((int) $idUsuario);
+        $solicitudValida = $fechaCompleta !== null
+            && $veterinarioValido
+            && ($idExcluir === null || $idExcluir !== false);
+        $disponible = $solicitudValida && ModeloCitas::mdlHorarioDisponible(
+            (int) $idUsuario,
+            $fechaCompleta,
+            $idExcluir === null ? null : (int) $idExcluir
+        );
+
+        if ($fechaCompleta === null) {
+            $mensaje = 'Seleccione una fecha futura y un bloque de 30 minutos entre 07:00 y 18:30.';
+        } elseif (!$veterinarioValido) {
+            $mensaje = 'El veterinario seleccionado no está disponible.';
+        } elseif (!$disponible) {
+            $mensaje = 'El veterinario ya tiene una cita activa en esa fecha y hora.';
+        } else {
+            $mensaje = 'Veterinario disponible en este horario.';
+        }
+        return [
+            'horarioValido' => $fechaCompleta !== null,
+            'veterinarioValido' => $veterinarioValido,
+            'disponible' => $disponible,
+            'mensaje' => $mensaje,
+        ];
+    }
+
+    public static function ctrCrearCita(): void
+    {
+        Seguridad::exigirAutenticacion();
+        Seguridad::exigirCsrf();
+        $datos = self::datosFormulario('crear');
+        if ($datos === null) {
+            self::redirigir('danger', 'Los datos de la cita no son válidos o están fuera del horario de atención.');
+        }
+        $datos['estadoCita'] = self::ESTADO_PENDIENTE;
+
+        $respuesta = ModeloCitas::mdlIngresarCita($datos);
+        self::responderEscritura($respuesta, 'La cita fue programada correctamente.');
+    }
+
+    public static function ctrEditarCita(): void
+    {
+        Seguridad::exigirAutenticacion();
+        Seguridad::exigirCsrf();
+        $idCita = filter_var($_POST['idCitaEditar'] ?? null, FILTER_VALIDATE_INT);
+        $accion = $_POST['btnAccionCita'] ?? 'guardar';
+        if ($idCita === false || !in_array($accion, ['cancelar', 'reactivar', 'completar', 'guardar'], true)) {
+            self::redirigir('danger', 'La operación solicitada no es válida.');
+        }
+
+        $actual = ModeloCitas::mdlMostrarCitas('IDcita', (int) $idCita);
+        if (!is_array($actual)) {
+            self::redirigir('danger', 'La cita solicitada ya no existe.');
+        }
+
+        if ($accion === 'cancelar') {
+            self::cambiarEstado(
+                (int) $idCita,
+                $actual['estadoCita'],
+                self::ESTADO_PENDIENTE,
+                self::ESTADO_CANCELADA,
+                'La cita fue cancelada. Sus datos se conservaron y puede reactivarse.'
+            );
+        }
+        if ($accion === 'completar') {
+            self::completarYContinuar((int) $idCita, $actual);
+        }
+
+        if ($actual['estadoCita'] === self::ESTADO_COMPLETADA) {
+            self::redirigir('warning', 'Una cita completada ya no puede modificarse.');
+        }
+        $estadoEsperado = $accion === 'reactivar'
+            ? self::ESTADO_CANCELADA
+            : self::ESTADO_PENDIENTE;
+        if ($actual['estadoCita'] !== $estadoEsperado) {
+            self::redirigir(
+                'warning',
+                $accion === 'reactivar'
+                    ? 'Solo se pueden reactivar citas canceladas.'
+                    : 'Solo se pueden modificar citas pendientes.'
+            );
+        }
+
+        $datos = self::datosFormulario('editar');
+        if ($datos === null) {
+            self::redirigir('danger', 'Los datos de la cita no son válidos o están fuera del horario de atención.');
+        }
+        $datos['IDcita'] = (int) $idCita;
+        $datos['estadoCita'] = self::ESTADO_PENDIENTE;
+        $datos['estadoEsperado'] = $estadoEsperado;
+
+        $respuesta = ModeloCitas::mdlEditarCita($datos);
+        self::responderEscritura(
+            $respuesta,
+            $accion === 'reactivar'
+                ? 'La cita fue reactivada correctamente.'
+                : 'La cita fue actualizada correctamente.'
+        );
+    }
+
+    private static function datosFormulario(string $modo): ?array
+    {
+        $crear = $modo === 'crear';
+        $motivo = self::motivoValido($_POST[$crear ? 'nuevoMotivo' : 'editarMotivo'] ?? null);
+        $fechaCompleta = self::normalizarFechaHorario(
+            $_POST[$crear ? 'fechaCitaCrear' : 'fechaCitaEditar'] ?? null,
+            $_POST[$crear ? 'seleccionarHora' : 'editarHora'] ?? null
+        );
+        $idMascota = filter_var(
+            $_POST[$crear ? 'seleccionarMascota' : 'editarMascota'] ?? null,
+            FILTER_VALIDATE_INT
+        );
+        $idUsuario = filter_var(
+            $_POST[$crear ? 'nuevoUsuario' : 'editarUsuario'] ?? null,
+            FILTER_VALIDATE_INT
+        );
+        $idServicio = filter_var(
+            $_POST[$crear ? 'nuevoServicio' : 'editarServicio'] ?? null,
+            FILTER_VALIDATE_INT
+        );
+
+        if ($motivo === null || $fechaCompleta === null
+            || $idMascota === false || !self::mascotaValida((int) $idMascota)
+            || $idUsuario === false || !self::veterinarioValido((int) $idUsuario)
+            || $idServicio === false || !ModeloCitas::mdlServicioActivo((int) $idServicio)) {
+            return null;
+        }
+        return [
+            'motivoCita' => $motivo,
+            'fechaAtencion' => $fechaCompleta,
+            'IDmascota' => (int) $idMascota,
+            'IDusuario' => (int) $idUsuario,
+            'IDservicio' => (int) $idServicio,
+        ];
+    }
+
+    private static function normalizarFechaHorario($fecha, $hora): ?string
     {
         if (!is_string($fecha) || !is_string($hora)
-            || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha)
-            || !preg_match('/^(\d{2}):(00|30)$/', $hora, $partes)) {
+            || preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha) !== 1
+            || preg_match('/^(\d{2}):(00|30)$/', $hora, $partes) !== 1) {
             return null;
         }
-
         $horaNumero = (int) $partes[1];
-        if ($horaNumero < 7 || $horaNumero >= 19) {
+        if ($horaNumero < self::HORA_APERTURA || $horaNumero >= self::HORA_CIERRE) {
             return null;
         }
 
-        $fechaCita = DateTime::createFromFormat('!Y-m-d H:i', "$fecha $hora");
-        $errores = DateTime::getLastErrors();
-        if (!$fechaCita || (is_array($errores) && ($errores['warning_count'] || $errores['error_count']))) {
-            return null;
-        }
-        if (!$permitirPasado && $fechaCita < new DateTime()) {
+        $fechaCita = DateTimeImmutable::createFromFormat('!Y-m-d H:i', "$fecha $hora");
+        $errores = DateTimeImmutable::getLastErrors();
+        if (!$fechaCita || (is_array($errores) && ($errores['warning_count'] || $errores['error_count']))
+            || $fechaCita < new DateTimeImmutable()) {
             return null;
         }
         return $fechaCita->format('Y-m-d H:i:s');
@@ -52,16 +200,18 @@ class ControladorCitas
 
     private static function veterinarioValido(int $idUsuario): bool
     {
-        $usuario = ModeloUsuarios::MdlMostrarUsuarios('usuarios', 'IDusuario', $idUsuario);
+        $usuario = ModeloUsuarios::mdlMostrarUsuarios('usuarios', 'IDusuario', $idUsuario);
         return is_array($usuario)
             && (int) $usuario['IDrol'] === 2
-            && (int) $usuario['habilitado'] === 1;
+            && (int) $usuario['estado_U'] === 1;
     }
 
     private static function mascotaValida(int $idMascota): bool
     {
-        $mascota = ModeloMascotas::MdlMostrarMascotas('mascotas', 'IDmascota', $idMascota);
-        return is_array($mascota) && (int) $mascota['habilitadoM'] === 1;
+        $mascota = ModeloMascotas::mdlMostrarMascotas('IDmascota', $idMascota);
+        return is_array($mascota)
+            && (int) $mascota['habilitadoM'] === 1
+            && (int) $mascota['habilitadoC'] === 1;
     }
 
     private static function motivoValido($motivo): ?string
@@ -70,187 +220,76 @@ class ControladorCitas
             return null;
         }
         $motivo = trim($motivo);
-        return $motivo !== '' && strlen($motivo) <= 75 ? $motivo : null;
+        return $motivo !== '' && mb_strlen($motivo) <= 75 ? $motivo : null;
     }
 
-    private static function confirmarReactivacion(int $idCita): bool
-    {
-        $confirmacion = $_SESSION[self::CLAVE_CONFIRMAR_REACTIVACION] ?? null;
-        unset($_SESSION[self::CLAVE_CONFIRMAR_REACTIVACION]);
-
-        if (is_array($confirmacion)
-            && (int) ($confirmacion['IDcitas'] ?? 0) === $idCita
-            && (int) ($confirmacion['expira'] ?? 0) >= time()) {
-            return true;
+    private static function cambiarEstado(
+        int $idCita,
+        string $estadoActual,
+        string $estadoRequerido,
+        string $estadoNuevo,
+        string $mensaje
+    ): void {
+        if ($estadoActual !== $estadoRequerido) {
+            self::redirigir('warning', 'La cita ya no se encuentra pendiente.');
         }
-
-        $_SESSION[self::CLAVE_CONFIRMAR_REACTIVACION] = [
-            'IDcitas' => $idCita,
-            'expira' => time() + self::VIGENCIA_CONFIRMACION,
-        ];
-        return false;
-    }
-
-    public static function ctrMostrarCitas($item = null, $valor = null)
-    {
-        return ModeloCitas::mdlMostrarCitas($item, $valor);
-    }
-
-    public static function ctrCrearCita(): void
-    {
-        if (!isset($_POST['nuevoMotivo'])) {
-            return;
-        }
-
-        Seguridad::exigirAutenticacion();
-        Seguridad::exigirCsrf();
-
-        $motivo = self::motivoValido($_POST['nuevoMotivo']);
-        $fechaCompleta = self::normalizarFechaHorario(
-            $_POST['fechaCitaCrear'] ?? null,
-            $_POST['seleccionarHora'] ?? null
-        );
-        $idMascota = filter_var($_POST['seleccionarMascota'] ?? null, FILTER_VALIDATE_INT);
-        $idUsuario = filter_var($_POST['nuevoUsuario'] ?? null, FILTER_VALIDATE_INT);
-
-        if ($motivo === null || $fechaCompleta === null
-            || $idMascota === false || !self::mascotaValida($idMascota)
-            || $idUsuario === false || !self::veterinarioValido($idUsuario)) {
-            self::redirigirCalendario('danger', 'Los datos de la cita no son válidos o el horario está fuera de atención.');
-        }
-
-        $respuesta = ModeloCitas::mdlIngresarCita([
-            'motivoCita' => $motivo,
-            'fechaAtencion' => $fechaCompleta,
-            'estadoCita' => self::ESTADO_PENDIENTE,
-            'colorCita' => '#3c8dbc',
-            'IDmascota' => $idMascota,
-            'IDusuario' => $idUsuario,
-        ]);
-
-        if ($respuesta === 'ocupado') {
-            self::redirigirCalendario('warning', 'El veterinario ya tiene una cita activa en esa fecha y hora.');
-        }
-        self::redirigirCalendario(
+        $respuesta = ModeloCitas::mdlActualizarEstadoCita($idCita, $estadoRequerido, $estadoNuevo);
+        self::redirigir(
             $respuesta === 'ok' ? 'success' : 'danger',
-            $respuesta === 'ok' ? 'La cita fue programada correctamente.' : 'No se pudo registrar la cita.'
+            $respuesta === 'ok' ? $mensaje : 'No se pudo actualizar el estado de la cita.'
         );
     }
 
-    public static function ctrEditarCita(): void
+    private static function completarYContinuar(int $idCita, array $cita): void
     {
-        if (!isset($_POST['idCitaEditar'])) {
-            return;
+        if (($cita['estadoCita'] ?? '') !== self::ESTADO_PENDIENTE) {
+            self::redirigir('warning', 'La cita ya no se encuentra pendiente.');
         }
 
-        Seguridad::exigirAutenticacion();
-        Seguridad::exigirCsrf();
-
-        $idCita = filter_var($_POST['idCitaEditar'], FILTER_VALIDATE_INT);
-        $accion = $_POST['btnAccionCita'] ?? 'guardar';
-        if ($idCita === false || !in_array($accion, ['cancelar', 'reactivar', 'completar', 'guardar'], true)) {
-            self::redirigirCalendario('danger', 'La operación solicitada no es válida.');
-        }
-
-        $actual = ModeloCitas::mdlMostrarCitas('IDcitas', $idCita);
-        if (!is_array($actual)) {
-            self::redirigirCalendario('danger', 'La cita ya no existe.');
-        }
-
-        if ($accion === 'cancelar') {
-            unset($_SESSION[self::CLAVE_CONFIRMAR_REACTIVACION]);
-            if ($actual['estadoCita'] !== self::ESTADO_PENDIENTE) {
-                self::redirigirCalendario('warning', 'Solo se pueden cancelar citas pendientes.');
-            }
-            $respuesta = ModeloCitas::mdlActualizarEstadoCita([
-                'IDcitas' => $idCita,
-                'estadoCita' => self::ESTADO_CANCELADA,
-                'estadoActual' => self::ESTADO_PENDIENTE,
-                'colorCita' => '#dd4b39',
-            ]);
-            self::redirigirCalendario(
-                $respuesta === 'ok' ? 'success' : 'danger',
-                $respuesta === 'ok'
-                    ? 'La cita fue cancelada. Se conservó su información y puede reactivarse.'
-                    : 'No se pudo cancelar la cita.'
-            );
-        }
-
-        if ($accion === 'completar') {
-            unset($_SESSION[self::CLAVE_CONFIRMAR_REACTIVACION]);
-            if ($actual['estadoCita'] !== self::ESTADO_PENDIENTE) {
-                self::redirigirCalendario('warning', 'Solo se pueden completar citas pendientes.');
-            }
-            $respuesta = ModeloCitas::mdlActualizarEstadoCita([
-                'IDcitas' => $idCita,
-                'estadoCita' => self::ESTADO_COMPLETADA,
-                'estadoActual' => self::ESTADO_PENDIENTE,
-                'colorCita' => '#00a65a',
-            ]);
-            self::redirigirCalendario(
-                $respuesta === 'ok' ? 'success' : 'danger',
-                $respuesta === 'ok'
-                    ? 'La cita fue completada correctamente.'
-                    : 'No se pudo completar la cita.'
-            );
-        }
-
-        if ($actual['estadoCita'] === self::ESTADO_COMPLETADA) {
-            self::redirigirCalendario('warning', 'Una cita completada ya no puede modificarse.');
-        }
-        if ($accion === 'reactivar' && $actual['estadoCita'] !== self::ESTADO_CANCELADA) {
-            self::redirigirCalendario('warning', 'Solo se pueden reactivar citas canceladas.');
-        }
-        if ($accion === 'guardar' && $actual['estadoCita'] !== self::ESTADO_PENDIENTE) {
-            self::redirigirCalendario('warning', 'La cita debe estar pendiente para realizar esa acción.');
-        }
-
-        if ($accion === 'reactivar' && !self::confirmarReactivacion($idCita)) {
-            self::redirigirCalendario(
-                'warning',
-                'Primer paso registrado. Abra la cita y presione Reactivar Cita nuevamente para confirmar.'
-            );
-        }
-        if ($accion !== 'reactivar') {
-            unset($_SESSION[self::CLAVE_CONFIRMAR_REACTIVACION]);
-        }
-
-        $motivo = self::motivoValido($_POST['editarMotivo'] ?? null);
-        $fechaCompleta = self::normalizarFechaHorario(
-            $_POST['fechaCitaEditar'] ?? null,
-            $_POST['editarHora'] ?? null,
-            false
+        $respuesta = ModeloCitas::mdlActualizarEstadoCita(
+            $idCita,
+            self::ESTADO_PENDIENTE,
+            self::ESTADO_COMPLETADA
         );
-        $idMascota = filter_var($_POST['editarMascota'] ?? null, FILTER_VALIDATE_INT);
-        $idUsuario = filter_var($_POST['editarUsuario'] ?? null, FILTER_VALIDATE_INT);
-
-        if ($motivo === null || $fechaCompleta === null
-            || $idMascota === false || !self::mascotaValida($idMascota)
-            || $idUsuario === false || !self::veterinarioValido($idUsuario)) {
-            self::redirigirCalendario('danger', 'Los datos de la cita no son válidos o el horario está fuera de atención.');
-        }
-
-        $respuesta = ModeloCitas::mdlEditarCita([
-            'IDcitas' => $idCita,
-            'motivoCita' => $motivo,
-            'fechaAtencion' => $fechaCompleta,
-            'estadoCita' => self::ESTADO_PENDIENTE,
-            'colorCita' => '#3c8dbc',
-            'IDmascota' => $idMascota,
-            'IDusuario' => $idUsuario,
-        ]);
-
-        if ($respuesta === 'ocupado') {
-            self::redirigirCalendario('warning', 'El veterinario ya tiene otra cita en esa fecha y hora.');
-        }
         if ($respuesta !== 'ok') {
-            self::redirigirCalendario('danger', 'No se pudo procesar la cita.');
+            self::redirigir('danger', 'No se pudo completar la cita.');
         }
 
-        $mensajes = [
-            'reactivar' => 'La cita fue reactivada correctamente.',
-            'guardar' => 'La cita fue actualizada correctamente.',
+        if ((int) ($cita['esVacunacion'] ?? 0) === 1) {
+            $_SESSION['historial_vac_flash'] = [
+                'tipo' => 'success',
+                'mensaje' => 'Cita completada. Registre ahora la vacuna aplicada para habilitar el cobro.',
+            ];
+            header('Location: HistorialVac?cita=' . $idCita);
+            exit;
+        }
+
+        $_SESSION['pago_flash'] = [
+            'tipo' => 'success',
+            'mensaje' => 'Cita completada. Ya puede registrar el pago del servicio.',
         ];
-        self::redirigirCalendario('success', $mensajes[$accion]);
+        header('Location: Pagos?cita=' . $idCita);
+        exit;
+    }
+
+    private static function responderEscritura(string $respuesta, string $mensajeOk): void
+    {
+        if ($respuesta === 'ok') {
+            self::redirigir('success', $mensajeOk);
+        }
+        $mensajes = [
+            'ocupado' => 'El veterinario ya tiene una cita activa en esa fecha y hora.',
+            'relacion_invalida' => 'La mascota, el veterinario o el servicio ya no está disponible.',
+            'no_encontrada' => 'La cita solicitada ya no existe.',
+            'estado_invalido' => 'El estado de la cita cambió. Recargue el calendario e intente nuevamente.',
+        ];
+        self::redirigir('danger', $mensajes[$respuesta] ?? 'No se pudo guardar la cita.');
+    }
+
+    private static function redirigir(string $tipo, string $mensaje): void
+    {
+        $_SESSION['cita_flash'] = ['tipo' => $tipo, 'mensaje' => $mensaje];
+        header('Location: Calendar');
+        exit;
     }
 }

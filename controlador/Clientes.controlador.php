@@ -1,193 +1,145 @@
-<?php 
-    
-    class ControladorClientes
+<?php
+
+final class ControladorClientes
+{
+    public static function ctrProcesarSolicitud(): void
     {
-        public function crtCrearCliente()
-        {
-            if(isset($_POST["nuevoCliente"]))
-            {
-                Seguridad::exigirAutenticacion();
-                Seguridad::exigirCsrf();
-                if(preg_match('/^[a-zA-Z0-9ñÑáéíóúÁÉÍÓÚ ]+$/',$_POST["nuevoCliente"]))
-                {
-                    $tabla="clientes";
-                    $datos=array("nombrec"=> $_POST["nuevoCliente"],
-                        "apellidoc"=> $_POST["nuevoApellidoc"],
-                        "telefono"=> $_POST["nuevoTelefono"],
-                        "registro"=> $_POST["nuevoRegistro"]);
-                    $respuesta = ModeloClientes::MdlCrearClientes ($tabla,$datos);
-                    //Comparacion de variables o campos de la tabla de usuario
-                    if($respuesta == "ok")
-                    {
-                      
-                        echo'<script>
-                        Swal({
-                            title: "Usuario Agregado!",
-                            icon: "success",
-                            draggable: true
-
-                            }).then(function(result){
-
-                                if(result.isConfirmed || result.value)
-                                {
-                                    window.location = "Clientes";
-                                }
-                            
-                            });
-                            
-                        </script>';
-
-                    }
-                    else
-                    {
-                        echo '<script>
-                        Swal.fire({
-                            icon: "error",
-                            title: "Oops...",
-                            text: "Algo esta mal!"
-
-                            }).then(function(result){
-
-                                if(result.isConfirmed || result.value)
-                                {
-                                    window.location = "Clientes";
-                                }
-                            
-                            });
-                           
-                        </script>';
-                    }   
-                }
-            }
+        if (isset($_POST['nuevoCliente'])) {
+            self::ctrCrearCliente();
+            return;
         }
-        static public function crtMostrarClientes($item, $valor)
-        {
-            $tabla="clientes";
-            $respuesta = ModeloClientes :: MdlMostrarClientes($tabla,$item, $valor);
-            return $respuesta;
+        if (isset($_POST['editarCliente'])) {
+            self::ctrModificarClientes();
+            return;
         }
-        public function ctrModificarClientes()
-        {
-            if(isset($_POST["editarCliente"]))
-            {
-                Seguridad::exigirAutenticacion();
-                Seguridad::exigirCsrf();
-                if(preg_match('/^[a-zA-Z0-9ñÑáéíóúÁÉÍÓÚ ]+$/', $_POST["editarCliente"]) &&
-                 preg_match('/^[a-zA-Z0-9ñÑáéíóúÁÉÍÓÚ ]+$/', $_POST["editarApellidoc"]))
-                {
-                    
-
-                    $tabla="clientes";
-                    $datos=array(
-                        "IDcliente" => $_POST["IDcliente"],
-                        "nombrec"=> $_POST["editarCliente"], 
-                        "apellidoc"=> $_POST["editarApellidoc"],
-                        "telefono"=> $_POST["editarTelefono"],
-                        "registro"=> $_POST["editarRegistro"],);
-                    
-                   
-                    $respuesta = ModeloClientes::MdlModificarClientes($tabla,$datos);
-                    //Comparacion de variables o campos de la tabla de usuario
-                    if($respuesta == "ok")
-                    {
-                      
-                        echo'<script>
-                        Swal({
-                            title: "Usuario Agregado!",
-                            icon: "success",
-                            draggable: true
-
-                            }).then(function(result){
-
-                                if(result.isConfirmed || result.value)
-                                {
-                                    window.location = "Clientes";
-                                }
-                            
-                            });
-                            
-                        </script>';
-
-                    }
-                    else
-                    {
-                        echo '<script>
-                        Swal.fire({
-                            icon: "error",
-                            title: "Oops...",
-                            text: "Algo esta mal!"
-
-                            }).then(function(result){
-
-                                if(result.isConfirmed || result.value)
-                                {
-                                    window.location = "Clientes";
-                                }
-                            
-                            });
-                           
-                        </script>';
-                    }   
-                }
-            }
+        if (isset($_POST['IDcliente'], $_POST['estadoCliente'])) {
+            self::ctrActualizarEstadoCliente();
         }
-        public function crtEliminarClientes()
-        {
-            if(isset($_POST["eliminarCliente"], $_POST["IDcliente"]))
-            {
-                Seguridad::exigirAutenticacion();
-                Seguridad::exigirCsrf();
-                $tabla ="clientes";
-                $datos = filter_var($_POST["IDcliente"], FILTER_VALIDATE_INT);
-                if ($datos === false) {
-                    http_response_code(422);
-                    return;
-                }
-                $respuesta = ModeloClientes::MdlEliminarClientes($tabla, $datos);
-
-                if($respuesta == "ok")
-                {
-                    
-                    echo'<script>
-                    Swal({
-                        title: "Usuario Agregado!",
-                        icon: "success",
-                        draggable: true
-
-                        }).then(function(result){
-
-                            if(result.isConfirmed || result.value)
-                            {
-                                window.location = "Clientes";
-                            }
-                        
-                        });
-                    </script>';
-
-                }
-                else
-                {
-                    echo '<script>
-                    Swal    ({
-                        icon: "error",
-                        title: "Oops...",
-                        text: "Algo esta mal!"
-
-                        }).then(function(result){
-
-                            if(result.isConfirmed || result.value)
-                            {
-                                window.location = "Clientes";
-                            }
-                        
-                        });
-                    </script>';
-                }
-            }
-            
-              
-        }
-
     }
-        
-?>
+
+    public static function crtMostrarClientes($item = null, $valor = null): mixed
+    {
+        return ModeloClientes::mdlMostrarClientes($item, $valor);
+    }
+
+    public static function ctrListarClientesHabilitados(): array
+    {
+        return ModeloClientes::mdlListarClientesHabilitados();
+    }
+
+    public static function ctrCrearCliente(): void
+    {
+        Seguridad::exigirAutenticacion();
+        Seguridad::exigirCsrf();
+        $datos = self::datosFormulario('nuevo');
+        if ($datos === null) {
+            self::redirigir('danger', 'Revise los datos del cliente e intente nuevamente.');
+        }
+
+        $respuesta = ModeloClientes::mdlCrearCliente($datos);
+        self::redirigir(
+            $respuesta === 'ok' ? 'success' : 'danger',
+            $respuesta === 'ok' ? 'Cliente registrado correctamente.' : 'No se pudo registrar el cliente.'
+        );
+    }
+
+    public static function ctrModificarClientes(): void
+    {
+        Seguridad::exigirAutenticacion();
+        Seguridad::exigirCsrf();
+        $idCliente = filter_var($_POST['IDcliente'] ?? null, FILTER_VALIDATE_INT);
+        $datos = self::datosFormulario('editar');
+        $actual = $idCliente === false ? null : ModeloClientes::mdlMostrarClientes('IDcliente', $idCliente);
+        if ($datos === null || !is_array($actual)) {
+            self::redirigir('danger', 'Los datos enviados no son válidos.');
+        }
+
+        $datos['IDcliente'] = (int) $idCliente;
+        $respuesta = ModeloClientes::mdlEditarCliente($datos);
+        self::redirigir(
+            $respuesta === 'ok' ? 'success' : 'danger',
+            $respuesta === 'ok' ? 'Cliente actualizado correctamente.' : 'No se pudo actualizar el cliente.'
+        );
+    }
+
+    public static function ctrActualizarEstadoCliente(): void
+    {
+        Seguridad::exigirAutenticacion();
+        Seguridad::exigirCsrf();
+        $idCliente = filter_var($_POST['IDcliente'] ?? null, FILTER_VALIDATE_INT);
+        $estado = filter_var($_POST['estadoCliente'] ?? null, FILTER_VALIDATE_INT);
+        if ($idCliente === false || !in_array($estado, [0, 1], true)) {
+            self::redirigir('danger', 'La operación solicitada no es válida.');
+        }
+
+        $respuesta = ModeloClientes::mdlActualizarEstadoCliente((int) $idCliente, (int) $estado);
+        if ($respuesta === 'no_encontrado') {
+            self::redirigir('danger', 'El cliente solicitado no existe.');
+        }
+        self::redirigir(
+            'success',
+            $estado === 1 ? 'Cliente habilitado correctamente.' : 'Cliente deshabilitado correctamente.'
+        );
+    }
+
+    // Compatibilidad con nombres anteriores.
+    public static function crtCrearCliente(): void
+    {
+        if (isset($_POST['nuevoCliente'])) {
+            self::ctrCrearCliente();
+        }
+    }
+
+    public static function crtEliminarClientes(): void
+    {
+        if (isset($_POST['IDcliente'])) {
+            $_POST['estadoCliente'] = 0;
+            self::ctrActualizarEstadoCliente();
+        }
+    }
+
+    private static function datosFormulario(string $prefijo): ?array
+    {
+        $campos = $prefijo === 'nuevo'
+            ? ['nuevoCliente', 'nuevoApellidoc', 'nuevoTelefono', 'nuevoRegistro']
+            : ['editarCliente', 'editarApellidoc', 'editarTelefono', 'editarRegistro'];
+        foreach ($campos as $campo) {
+            if (!isset($_POST[$campo]) || !is_string($_POST[$campo])) {
+                return null;
+            }
+        }
+
+        $nombre = trim($_POST[$campos[0]]);
+        $apellido = trim($_POST[$campos[1]]);
+        $telefono = trim($_POST[$campos[2]]);
+        $registro = trim($_POST[$campos[3]]);
+        if (!self::nombreValido($nombre) || !self::nombreValido($apellido)
+            || preg_match('/^[0-9+() -]{7,20}$/', $telefono) !== 1
+            || !self::fechaValida($registro, false)) {
+            return null;
+        }
+        return compact('nombre', 'apellido', 'telefono', 'registro');
+    }
+
+    private static function nombreValido(string $valor): bool
+    {
+        return mb_strlen($valor) >= 2 && mb_strlen($valor) <= 50
+            && preg_match("/^[\p{L}\p{M} .'-]+$/u", $valor) === 1;
+    }
+
+    private static function fechaValida(string $fecha, bool $permiteFutura): bool
+    {
+        $objeto = DateTimeImmutable::createFromFormat('!Y-m-d', $fecha);
+        if (!$objeto || $objeto->format('Y-m-d') !== $fecha) {
+            return false;
+        }
+        return $permiteFutura || $fecha <= date('Y-m-d');
+    }
+
+    private static function redirigir(string $tipo, string $mensaje): void
+    {
+        $_SESSION['cliente_flash'] = ['tipo' => $tipo, 'mensaje' => $mensaje];
+        header('Location: Clientes');
+        exit;
+    }
+}

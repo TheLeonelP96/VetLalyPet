@@ -1,418 +1,344 @@
 <?php
 
+final class ControladorUsuarios
+{
+    private const ROLES_VALIDOS = [1, 2, 3];
+    private const TURNOS_VALIDOS = ['Mañana', 'Tarde', 'Horario continuo'];
 
-    class ControladorUsuarios
+    public static function ctrProcesarSolicitud(): void
     {
-        public function ctrIngresarUsuarios()
-        {
-            //Programar siguiente clase
-            if(isset($_POST["imgUsuario"]))
-            {
-                Seguridad::exigirCsrf();
-                if(preg_match('/^[a-zA-Z0-9 ]+$/', $_POST["imgUsuario"])
-                    && is_string($_POST["imgPassword"])
-                    && $_POST["imgPassword"] !== ''
-                    && strlen($_POST["imgPassword"]) <= 200)
-                {
-                    $tabla="usuarios";
-                    $item="Usunombre";
-                    $valor = $_POST["imgUsuario"];
-                    $respuesta = ModeloUsuarios :: MdlMostrarUsuarios($tabla,$item, $valor);
-                    //Comparacion de variables o campos de la tabla de usuario
-                    if(is_array($respuesta) && password_verify($_POST["imgPassword"], $respuesta["password"]))
-                    {
-                        session_regenerate_id(true);
-                        $_SESSION['IniciarSesion']= "ok";
-
-                        $_SESSION['IDrol']= $respuesta["IDrol"];    
-                        $_SESSION['IDusuario']= $respuesta["IDusuario"];
-                        $_SESSION['nombre']= $respuesta["nombre"];
-                        $_SESSION['apellido']= $respuesta["apellido"];
-                        $_SESSION['Usunombre']= $respuesta["Usunombre"];
-                        $_SESSION['telefono']= $respuesta["telefono"];
-                        $_SESSION['correo']= $respuesta["correo"];
-                        $_SESSION['turno']= $respuesta["turno"];
-                        $_SESSION['estado']= 1;
-                        $_SESSION['habilitado']= $respuesta["habilitado"]; 
-                        
-                        $_SESSION['foto']= $respuesta["foto"];
-
-                        ModeloUsuarios::MdlActualizarEstado($tabla, 1, $respuesta["IDusuario"]);
-                        echo'<script>window.location="Inicio";</script>';
-
-                    }
-                    else
-                    {
-                        echo '<br><div class="alert alert-danger">Error al entrar al sistema, usuario o contraseña incorrectos</div> ';
-                       
-                    }
-                   
-                }
-            }
+        if (isset($_POST['nuevoNombre'])) {
+            self::ctrCrearUsuarios();
+            return;
         }
-        public function ctrCrearUsuarios()
-        {
-            if(isset($_POST["nuevoNombre"]))
-            {
-                Seguridad::exigirRol([1]);
-                Seguridad::exigirCsrf();
-                if(preg_match('/^[a-zA-Z0-9ñÑáéíóúÁÉÍÓÚ ]+$/',$_POST["nuevoNombre"])&& 
-                preg_match('/^[a-zA-Z0-9ñÑáéíóúÁÉÍÓÚ ]+$/',$_POST["nuevoApellido"])&& 
-                preg_match('/^[a-zA-Z0-9ñÑáéíóúÁÉÍÓÚ ]+$/',$_POST["nuevoUsuario"]) &&
-                strlen($_POST["nuevoPassword"]) >= 8 && strlen($_POST["nuevoPassword"]) <= 72)
-                {
-                    $ruta = "";
-
-                    if((isset($_FILES["nuevaFoto"]["tmp_name"]) && !empty($_FILES["nuevaFoto"]["tmp_name"])))
-                    {
-                        $tipoImagen = Seguridad::tipoImagenSubida($_FILES["nuevaFoto"]);
-
-                        list($ancho, $alto) = getimagesize($_FILES["nuevaFoto"]["tmp_name"]);
-
-                        $nuevoAncho = 500;
-                        $nuevoAlto = 500;
-
-                        
-
-                        $directorio = "vistas/js/img/usuarios/".trim($_POST["nuevoNombre"]);
-
-                        mkdir($directorio, 0755);
-
-
-                        if($tipoImagen == "image/jpeg"){
-
-          
-                            $aleatorio = mt_rand(100,999);
-
-                            $ruta = "vistas/js/img/usuarios/".$_POST["nuevoNombre"]."/".$aleatorio.".jpg";
-
-                            $origen = imagecreatefromjpeg($_FILES["nuevaFoto"]["tmp_name"]);                        
-
-                            $destino = imagecreatetruecolor($nuevoAncho, $nuevoAlto);
-
-                            imagecopyresized($destino, $origen, 0, 0, 0, 0, $nuevoAncho, $nuevoAlto, $ancho, $alto);
-
-                            imagejpeg($destino, $ruta);
-
-                        }
-
-                        if($tipoImagen == "image/png"){
-
-                          
-
-                            $aleatorio = mt_rand(100,999);
-
-                            $ruta = "vistas/js/img/usuarios/".$_POST["nuevoNombre"]."/".$aleatorio.".png";
-
-                            $origen = imagecreatefrompng($_FILES["nuevaFoto"]["tmp_name"]);                    
-
-                            $destino = imagecreatetruecolor($nuevoAncho, $nuevoAlto);
-
-                            imagecopyresized($destino, $origen, 0, 0, 0, 0, $nuevoAncho, $nuevoAlto, $ancho, $alto);
-
-                            imagepng($destino, $ruta);
-                        }
-                    }
-                    $tabla="usuarios";
-                    $datos=array(
-                        "nombre"=> $_POST["nuevoNombre"],
-                        "apellido"=> $_POST["nuevoApellido"],
-                        "Usunombre"=> $_POST["nuevoUsuario"],
-                        "telefono"=> $_POST["nuevoTelefono"],
-                        "correo"=> $_POST["nuevoEmail"],
-                        "password"=> password_hash($_POST["nuevoPassword"], PASSWORD_DEFAULT),
-                        "turno"=> $_POST["nuevoTurno"],
-                        "foto"=> $ruta);
-                    
-                   
-                    $respuesta = ModeloUsuarios::MdlCrearUsuarios ($tabla,$datos);
-                    //Comparacion de variables o campos de la tabla de usuario
-                    if($respuesta == "ok")
-                    {
-                      
-                        echo'<script>
-                        Swal({
-                            title: "Usuario Agregado!",
-                            icon: "success",
-                            draggable: true
-
-                            }).then(function(result){
-
-                                if(result.isConfirmed || result.value)
-                                {
-                                    window.location = "Usuarios";
-                                }
-                            
-                            });
-                            
-                        </script>';
-
-                    }
-                    else
-                    {
-                        echo '<script>
-                        Swal.fire({
-                            icon: "error",
-                            title: "Oops...",
-                            text: "Algo esta mal!"
-
-                            }).then(function(result){
-
-                                if(result.isConfirmed || result.value)
-                                {
-                                    window.location = "Usuarios";
-                                }
-                            
-                            });
-                           
-                        </script>';
-                    }   
-                }
-            }
+        if (isset($_POST['editarNombre'])) {
+            self::ctrEditarUsuarios();
+            return;
         }
-        static public function ctrMostrarUsuarios($item, $valor)
-        {
-            $tabla="usuarios";
-            $respuesta = ModeloUsuarios :: MdlMostrarUsuarios($tabla,$item, $valor);
-            return $respuesta;
+        if (isset($_POST['IDusuario'], $_POST['estadoUsuario'])) {
+            self::ctrActualizarEstadoUsuario();
         }
-         public function ctrEditarUsuarios()
-        {
-            if(isset($_POST["editarNombre"]))
-            {
-                Seguridad::exigirRol([1]);
-                Seguridad::exigirCsrf();
-                //var_dump($_POST);
-                if(preg_match('/^[a-zA-Z0-9ñÑáéíóúÁÉÍÓÚ ]+$/',$_POST["editarNombre"])&& 
-                preg_match('/^[a-zA-Z0-9ñÑáéíóúÁÉÍÓÚ ]+$/',$_POST["editarApellido"])&& 
-                preg_match('/^[a-zA-Z0-9ñÑáéíóúÁÉÍÓÚ ]+$/',$_POST["editarUsuario"]) &&
-                (empty($_POST["editarPassword"]) || (strlen($_POST["editarPassword"]) >= 8 && strlen($_POST["editarPassword"]) <= 72)))
-                {
-                    $usuarioActual = ModeloUsuarios::MdlMostrarUsuarios("usuarios", "IDusuario", $_POST["IDusuario"]);
-                    if (!is_array($usuarioActual)) {
-                        http_response_code(404);
-                        return;
-                    }
-                    $ruta = $usuarioActual["foto"];
-                    if((isset($_FILES["editarFoto"]["tmp_name"]) && !empty($_FILES["editarFoto"]["tmp_name"])))
-                    {
-                        $tipoImagen = Seguridad::tipoImagenSubida($_FILES["editarFoto"]);
-                        
-
-                        list($ancho, $alto) = getimagesize($_FILES["editarFoto"]["tmp_name"]);
-
-                        $nuevoAncho = 500;
-                        $nuevoAlto = 500;
-
-                    
-                        $directorio = "vistas/js/img/usuarios/".$_POST["editarNombre"];
-
-                        // Crear carpeta SOLO si no existe
-                        if(!file_exists($directorio)){
-                            mkdir($directorio, 0755);
-                        }
-
-                        Seguridad::eliminarImagenGuardada($usuarioActual["foto"]);
-                                            
-
-                        if($tipoImagen == "image/jpeg"){
-
-                
-                            $aleatorio = mt_rand(100,999);
-
-                            $ruta = "vistas/js/img/usuarios/".$_POST["editarNombre"]."/".$aleatorio.".jpg";
-
-                            $origen = imagecreatefromjpeg($_FILES["editarFoto"]["tmp_name"]);                        
-
-                            $destino = imagecreatetruecolor($nuevoAncho, $nuevoAlto);
-
-                            imagecopyresized($destino, $origen, 0, 0, 0, 0, $nuevoAncho, $nuevoAlto, $ancho, $alto);
-
-                            imagejpeg($destino, $ruta);
-
-                        }
-
-                        if($tipoImagen == "image/png"){
-
-                            $aleatorio = mt_rand(100,999);
-
-                            $ruta = "vistas/js/img/usuarios/".$_POST["editarNombre"]."/".$aleatorio.".png";
-
-                            $origen = imagecreatefrompng($_FILES["editarFoto"]["tmp_name"]);                    
-
-                            $destino = imagecreatetruecolor($nuevoAncho, $nuevoAlto);
-
-                            imagecopyresized($destino, $origen, 0, 0, 0, 0, $nuevoAncho, $nuevoAlto, $ancho, $alto);
-
-                            imagepng($destino, $ruta);
-                        }
-                        
-                    }
-                    
-                    $tabla="usuarios";
-                    $password = empty($_POST["editarPassword"])
-                        ? $usuarioActual["password"]
-                        : password_hash($_POST["editarPassword"], PASSWORD_DEFAULT);
-
-                    $datos=array(
-                        "IDusuario" => $_POST["IDusuario"], 
-                        "nombre"=> $_POST["editarNombre"],
-                        "apellido"=> $_POST["editarApellido"],
-                        "Usunombre"=> $_POST["editarUsuario"],
-                        "telefono"=> $_POST["editarTelefono"],
-                        "correo"=> $_POST["editarEmail"],
-                        "password"=> $password,
-                        "turno"=> $_POST["editarTurno"],
-                        "foto"=> $ruta);
-                    
-                
-                    $respuesta = ModeloUsuarios::MdlEditarUsuarios ($tabla,$datos);
-                    //Comparacion de variables o campos de la tabla de usuario
-                     if($respuesta == "ok")
-                    {
-                      
-                        echo'<script>
-                        Swal({
-                            title: "Usuario Agregado!",
-                            icon: "success",
-                            draggable: true
-
-                            }).then(function(result){
-
-                                if(result.isConfirmed || result.value)
-                                {
-                                    window.location = "Usuarios";
-                                }
-                            
-                            });
-                            
-                        </script>';
-
-                    }
-                    else
-                    {
-                        echo '<script>
-                        Swal.fire({
-                            icon: "error",
-                            title: "Oops...",
-                            text: "Algo esta mal!"
-
-                            }).then(function(result){
-
-                                if(result.isConfirmed || result.value)
-                                {
-                                    window.location = "Usuarios ";
-                                }
-                            
-                            });
-                           
-                        </script>';
-                    }   
-                   
-                }
-            }
-        }
-        public function crtEliminarUsuarios()
-        {
-            if(isset($_POST["eliminarUsuarioDefinitivo"], $_POST["IDusuario"]))
-            {
-                Seguridad::exigirRol([1]);
-                Seguridad::exigirCsrf();
-                $tabla ="usuarios";
-                $datos = filter_var($_POST["IDusuario"], FILTER_VALIDATE_INT);
-                if ($datos === false) {
-                    http_response_code(422);
-                    return;
-                }
-                $respuesta = ModeloUsuarios::MdlEliminarUsuarios($tabla, $datos);
-
-                if($respuesta == "ok")
-                {
-                    
-                    echo'<script>
-                    Swal({
-                        title: "Usuario Agregado!",
-                        icon: "success",
-                        draggable: true
-
-                        }).then(function(result){
-
-                            if(result.isConfirmed)
-                            {
-                                window.location = "Usuarios";
-                            }
-                        
-                        });
-                    </script>';
-
-                }
-                else
-                {
-                    echo '<script>
-                    Swal    ({
-                        icon: "error",
-                        title: "Oops...",
-                        text: "Algo esta mal!"
-
-                        }).then(function(result){
-
-                            if(result.isConfirmed)
-                            {
-                                window.location = "Usuarios";
-                            }
-                        
-                        });
-                    </script>';
-                }
-            }
-            
-              
-        }
-        public function crtDesHabilitarUsuarios()
-        {
-            // Corregido: isset para ambos
-            if(isset($_POST["IDusuario"], $_POST["estadoUsuario"]))
-            {
-                Seguridad::exigirRol([1]);
-                Seguridad::exigirCsrf();
-                $tabla = "usuarios";
-                $IDusuario = filter_var($_POST["IDusuario"], FILTER_VALIDATE_INT);
-                $estado = filter_var($_POST["estadoUsuario"], FILTER_VALIDATE_INT);
-                if ($IDusuario === false || !in_array($estado, [0, 1], true)) {
-                    http_response_code(422);
-                    return;
-                }
-
-                // Pasamos las variables correctas
-                $respuesta = ModeloUsuarios::MdlActualizarUsuarios($tabla, $estado, $IDusuario);
-
-                if($respuesta == "ok")
-                {
-                    echo'<script>
-                    Swal.fire({ // Corregido a Swal.fire
-                        title: "¡Estado Actualizado!",
-                        icon: "success"
-                    }).then(function(result){
-                        window.location = "Usuarios";
-                    });
-                    </script>';
-                }
-                else
-                {
-                    echo '<script>
-                    Swal.fire({
-                        icon: "error",
-                        title: "Oops...",
-                        text: "Algo está mal!"
-                    }).then(function(result){
-                        window.location = "Usuarios";
-                    });
-                    </script>';
-                }
-            }
-        }   
     }
 
+    public static function ctrIngresarUsuarios(): void
+    {
+        $correoRecibido = $_POST['imgEmail'] ?? $_POST['imgUsuario'] ?? null;
+        if ($correoRecibido === null) {
+            return;
+        }
 
+        Seguridad::exigirCsrf();
+        $correo = self::normalizarCorreo($correoRecibido);
+        $password = $_POST['imgPassword'] ?? null;
+        if ($correo === null || !is_string($password) || $password === '' || strlen($password) > 200) {
+            self::fallarLogin();
+        }
 
-?>
+        $usuario = ModeloUsuarios::mdlBuscarPorCorreo($correo);
+        if (!is_array($usuario) || !password_verify($password, $usuario['password'])) {
+            self::fallarLogin();
+        }
+
+        if (password_needs_rehash($usuario['password'], PASSWORD_DEFAULT)) {
+            ModeloUsuarios::mdlActualizarPassword(
+                (int) $usuario['IDusuario'],
+                password_hash($password, PASSWORD_DEFAULT)
+            );
+        }
+
+        session_regenerate_id(true);
+        self::guardarUsuarioEnSesion($usuario);
+        ModeloUsuarios::mdlActualizarSesion((int) $usuario['IDusuario'], 1);
+        header('Location: Inicio');
+        exit;
+    }
+
+    public static function ctrCerrarSesion(): void
+    {
+        Seguridad::iniciarSesion();
+        if (!empty($_SESSION['IDusuario'])) {
+            ModeloUsuarios::mdlActualizarSesion((int) $_SESSION['IDusuario'], 0);
+        }
+        $_SESSION = [];
+        if (ini_get('session.use_cookies')) {
+            $parametros = session_get_cookie_params();
+            setcookie(session_name(), '', time() - 42000, $parametros['path'], $parametros['domain'],
+                $parametros['secure'], $parametros['httponly']);
+        }
+        session_destroy();
+        header('Location: ./');
+        exit;
+    }
+
+    public static function ctrMostrarUsuarios($item = null, $valor = null): mixed
+    {
+        return ModeloUsuarios::mdlMostrarUsuarios('usuarios', $item, $valor);
+    }
+
+    public static function ctrCrearUsuarios(): void
+    {
+        Seguridad::exigirRol([1]);
+        Seguridad::exigirCsrf();
+        $datos = self::datosFormulario('nuevo');
+        if ($datos === null) {
+            self::redirigirUsuarios('danger', 'Revise los datos del usuario e intente nuevamente.');
+        }
+
+        $foto = '';
+        try {
+            $foto = self::guardarFoto($_FILES['nuevaFoto'] ?? null) ?? '';
+        } catch (RuntimeException $e) {
+            self::redirigirUsuarios('danger', $e->getMessage());
+        }
+
+        $datos['foto'] = $foto;
+        $datos['password'] = password_hash((string) $_POST['nuevoPassword'], PASSWORD_DEFAULT);
+        $respuesta = ModeloUsuarios::mdlCrearUsuario($datos);
+        if ($respuesta !== 'ok' && $foto !== '') {
+            Seguridad::eliminarImagenGuardada($foto);
+        }
+
+        if ($respuesta === 'duplicado') {
+            self::redirigirUsuarios('warning', 'Ese correo electrónico ya está registrado.');
+        }
+        self::redirigirUsuarios(
+            $respuesta === 'ok' ? 'success' : 'danger',
+            $respuesta === 'ok' ? 'Usuario registrado correctamente.' : 'No se pudo registrar el usuario.'
+        );
+    }
+
+    public static function ctrEditarUsuarios(): void
+    {
+        Seguridad::exigirRol([1]);
+        Seguridad::exigirCsrf();
+        $idUsuario = filter_var($_POST['IDusuario'] ?? null, FILTER_VALIDATE_INT);
+        $datos = self::datosFormulario('editar');
+        $actual = $idUsuario === false
+            ? null
+            : ModeloUsuarios::mdlMostrarUsuarios('usuarios', 'IDusuario', $idUsuario);
+
+        if ($datos === null || !is_array($actual)) {
+            self::redirigirUsuarios('danger', 'Los datos enviados no son válidos.');
+        }
+        if ((int) ($_SESSION['IDusuario'] ?? 0) === (int) $idUsuario
+            && (int) $actual['IDrol'] === 1 && (int) $datos['IDrol'] !== 1) {
+            self::redirigirUsuarios('warning', 'No puede quitarse a sí mismo el rol de administrador.');
+        }
+
+        $fotoNueva = null;
+        try {
+            $fotoNueva = self::guardarFoto($_FILES['editarFoto'] ?? null);
+        } catch (RuntimeException $e) {
+            self::redirigirUsuarios('danger', $e->getMessage());
+        }
+
+        $passwordNueva = $_POST['editarPassword'] ?? '';
+        if ($passwordNueva !== '' && !self::passwordValida($passwordNueva)) {
+            if ($fotoNueva !== null) {
+                Seguridad::eliminarImagenGuardada($fotoNueva);
+            }
+            self::redirigirUsuarios('danger', 'La contraseña debe tener entre 8 y 72 caracteres.');
+        }
+
+        $datos['IDusuario'] = (int) $idUsuario;
+        $datos['foto'] = $fotoNueva ?? $actual['foto'];
+        $datos['password'] = $passwordNueva === ''
+            ? $actual['password']
+            : password_hash($passwordNueva, PASSWORD_DEFAULT);
+
+        $respuesta = ModeloUsuarios::mdlEditarUsuario($datos);
+        if ($respuesta === 'ok') {
+            if ($fotoNueva !== null && $actual['foto'] !== '') {
+                Seguridad::eliminarImagenGuardada($actual['foto']);
+            }
+            if ((int) ($_SESSION['IDusuario'] ?? 0) === (int) $idUsuario) {
+                $actualizado = ModeloUsuarios::mdlMostrarUsuarios('usuarios', 'IDusuario', $idUsuario);
+                if (is_array($actualizado)) {
+                    self::guardarUsuarioEnSesion($actualizado);
+                }
+            }
+            self::redirigirUsuarios('success', 'Usuario actualizado correctamente.');
+        }
+
+        if ($fotoNueva !== null) {
+            Seguridad::eliminarImagenGuardada($fotoNueva);
+        }
+        self::redirigirUsuarios(
+            $respuesta === 'duplicado' ? 'warning' : 'danger',
+            $respuesta === 'duplicado'
+                ? 'Ese correo electrónico ya pertenece a otro usuario.'
+                : 'No se pudo actualizar el usuario.'
+        );
+    }
+
+    public static function ctrActualizarEstadoUsuario(): void
+    {
+        Seguridad::exigirRol([1]);
+        Seguridad::exigirCsrf();
+        $idUsuario = filter_var($_POST['IDusuario'] ?? null, FILTER_VALIDATE_INT);
+        $estado = filter_var($_POST['estadoUsuario'] ?? null, FILTER_VALIDATE_INT);
+        if ($idUsuario === false || !in_array($estado, [0, 1], true)) {
+            self::redirigirUsuarios('danger', 'La operación solicitada no es válida.');
+        }
+        if ((int) $_SESSION['IDusuario'] === (int) $idUsuario && $estado === 0) {
+            self::redirigirUsuarios('warning', 'No puede deshabilitar su propia cuenta.');
+        }
+
+        $respuesta = ModeloUsuarios::mdlActualizarEstadoUsuario((int) $idUsuario, (int) $estado);
+        self::redirigirUsuarios(
+            in_array($respuesta, ['ok', 'sin_cambios'], true) ? 'success' : 'danger',
+            $estado === 1 ? 'Usuario habilitado correctamente.' : 'Usuario deshabilitado correctamente.'
+        );
+    }
+
+    // Nombre anterior conservado para llamadas que aún no fueron migradas.
+    public static function crtDesHabilitarUsuarios(): void
+    {
+        if (isset($_POST['IDusuario'], $_POST['estadoUsuario'])) {
+            self::ctrActualizarEstadoUsuario();
+        }
+    }
+
+    private static function datosFormulario(string $prefijo): ?array
+    {
+        $campos = $prefijo === 'nuevo'
+            ? ['nuevoNombre', 'nuevoApellido', 'nuevoTelefono', 'nuevoEmail', 'nuevoTurno', 'nuevoRol']
+            : ['editarNombre', 'editarApellido', 'editarTelefono', 'editarEmail', 'editarTurno', 'editarRol'];
+        foreach ($campos as $campo) {
+            if (!isset($_POST[$campo]) || !is_string($_POST[$campo])) {
+                return null;
+            }
+        }
+
+        $nombre = trim($_POST[$campos[0]]);
+        $apellido = trim($_POST[$campos[1]]);
+        $telefono = trim($_POST[$campos[2]]);
+        $correo = self::normalizarCorreo($_POST[$campos[3]]);
+        $turno = self::normalizarTurno($_POST[$campos[4]]);
+        $idRol = filter_var($_POST[$campos[5]], FILTER_VALIDATE_INT);
+        $password = $prefijo === 'nuevo' ? ($_POST['nuevoPassword'] ?? null) : null;
+
+        if (!self::nombreValido($nombre) || !self::nombreValido($apellido)
+            || !preg_match('/^[0-9+() -]{7,20}$/', $telefono)
+            || $correo === null || $turno === null
+            || $idRol === false || !in_array((int) $idRol, self::ROLES_VALIDOS, true)
+            || ($prefijo === 'nuevo' && !self::passwordValida($password))) {
+            return null;
+        }
+
+        return [
+            'nombre' => $nombre,
+            'apellido' => $apellido,
+            'telefono' => $telefono,
+            'correo' => $correo,
+            'turno' => $turno,
+            'IDrol' => (int) $idRol,
+        ];
+    }
+
+    private static function guardarUsuarioEnSesion(array $usuario): void
+    {
+        $_SESSION['IniciarSesion'] = 'ok';
+        $_SESSION['IDusuario'] = (int) $usuario['IDusuario'];
+        $_SESSION['IDrol'] = (int) $usuario['IDrol'];
+        $_SESSION['nombre'] = $usuario['nombre_U'];
+        $_SESSION['apellido'] = $usuario['apellido_U'];
+        $_SESSION['telefono'] = $usuario['telefono_U'];
+        $_SESSION['correo'] = $usuario['email_U'];
+        $_SESSION['turno'] = $usuario['turno_U'];
+        $_SESSION['estado'] = 1;
+        $_SESSION['habilitado'] = (int) $usuario['estado_U'];
+        $_SESSION['foto'] = $usuario['foto'];
+    }
+
+    private static function guardarFoto(?array $archivo): ?string
+    {
+        if ($archivo === null || ($archivo['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+            return null;
+        }
+        $tipo = Seguridad::tipoImagenSubida($archivo);
+        $dimensiones = getimagesize($archivo['tmp_name']);
+        if ($dimensiones === false) {
+            throw new RuntimeException('No se pudo leer la imagen seleccionada.');
+        }
+
+        $raiz = dirname(__DIR__) . '/vistas/js/img/usuarios';
+        if (!is_dir($raiz) && !mkdir($raiz, 0755, true) && !is_dir($raiz)) {
+            throw new RuntimeException('No se pudo preparar el directorio de imágenes.');
+        }
+        $carpeta = 'usuario_' . bin2hex(random_bytes(8));
+        $directorio = $raiz . '/' . $carpeta;
+        if (!mkdir($directorio, 0755)) {
+            throw new RuntimeException('No se pudo guardar la imagen del usuario.');
+        }
+
+        $extension = $tipo === 'image/png' ? 'png' : 'jpg';
+        $rutaRelativa = "vistas/js/img/usuarios/$carpeta/perfil.$extension";
+        $rutaAbsoluta = dirname(__DIR__) . '/' . $rutaRelativa;
+        $origen = $tipo === 'image/png'
+            ? imagecreatefrompng($archivo['tmp_name'])
+            : imagecreatefromjpeg($archivo['tmp_name']);
+        if ($origen === false) {
+            throw new RuntimeException('La imagen seleccionada no es válida.');
+        }
+
+        $destino = imagecreatetruecolor(500, 500);
+        if ($tipo === 'image/png') {
+            imagealphablending($destino, false);
+            imagesavealpha($destino, true);
+        }
+        imagecopyresampled($destino, $origen, 0, 0, 0, 0, 500, 500, $dimensiones[0], $dimensiones[1]);
+        $guardada = $tipo === 'image/png'
+            ? imagepng($destino, $rutaAbsoluta)
+            : imagejpeg($destino, $rutaAbsoluta, 90);
+        imagedestroy($origen);
+        imagedestroy($destino);
+        if (!$guardada) {
+            throw new RuntimeException('No se pudo guardar la imagen del usuario.');
+        }
+        return $rutaRelativa;
+    }
+
+    private static function nombreValido(string $valor): bool
+    {
+        return mb_strlen($valor) >= 2 && mb_strlen($valor) <= 50
+            && preg_match("/^[\\p{L}\\p{M} .'-]+$/u", $valor) === 1;
+    }
+
+    private static function passwordValida($password): bool
+    {
+        return is_string($password) && strlen($password) >= 8 && strlen($password) <= 72;
+    }
+
+    private static function normalizarCorreo($correo): ?string
+    {
+        if (!is_string($correo)) {
+            return null;
+        }
+        $correo = mb_strtolower(trim($correo));
+        return strlen($correo) <= 254 && filter_var($correo, FILTER_VALIDATE_EMAIL) ? $correo : null;
+    }
+
+    private static function normalizarTurno(string $turno): ?string
+    {
+        $turno = trim($turno);
+        if (strcasecmp($turno, 'Horario Continuo') === 0) {
+            $turno = 'Horario continuo';
+        }
+        return in_array($turno, self::TURNOS_VALIDOS, true) ? $turno : null;
+    }
+
+    private static function fallarLogin(): void
+    {
+        $_SESSION['login_error'] = 'Correo o contraseña incorrectos, o la cuenta está deshabilitada.';
+        header('Location: ./');
+        exit;
+    }
+
+    private static function redirigirUsuarios(string $tipo, string $mensaje): void
+    {
+        $_SESSION['usuario_flash'] = ['tipo' => $tipo, 'mensaje' => $mensaje];
+        header('Location: Usuarios');
+        exit;
+    }
+}

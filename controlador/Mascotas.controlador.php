@@ -1,362 +1,189 @@
 <?php
-    
-    class ControladorMascotas
+
+final class ControladorMascotas
+{
+    private const SEXOS = ['Macho', 'Hembra', 'No especificado'];
+
+    public static function ctrProcesarSolicitud(): void
     {
-        public function ctrCrearMascotas()
-        {
-            if(isset($_POST["nuevoMascota"]))
-            {
-                Seguridad::exigirAutenticacion();
-                Seguridad::exigirCsrf();
-                if(preg_match('/^[a-zA-Z0-9ñÑáéíóúÁÉÍÓÚ ]+$/',$_POST["nuevoMascota"]))
-               
-                {
-                    $ruta = "";
-
-                    if(isset($_FILES["nuevaFoto"]["tmp_name"])){
-                        $tipoImagen = Seguridad::tipoImagenSubida($_FILES["nuevaFoto"]);
-
-                        list($ancho, $alto) = getimagesize($_FILES["nuevaFoto"]["tmp_name"]);
-
-                        $nuevoAncho = 500;
-                        $nuevoAlto = 500;
-
-                      
-
-                        $directorio = "vistas/js/img/usuarios/".$_POST["nuevoMascota"];
-
-                        // AHORA (Solución limpia):
-                        if(!file_exists($directorio)){
-                            mkdir($directorio, 0755, true);
-                        }
-
-                      
-
-                        if($tipoImagen == "image/jpeg"){
-
-                   
-                            $aleatorio = mt_rand(100,999);
-
-                            $ruta = "vistas/js/img/usuarios/".$_POST["nuevoMascota"]."/".$aleatorio.".jpg";
-
-                            $origen = imagecreatefromjpeg($_FILES["nuevaFoto"]["tmp_name"]);                        
-
-                            $destino = imagecreatetruecolor($nuevoAncho, $nuevoAlto);
-
-                            imagecopyresized($destino, $origen, 0, 0, 0, 0, $nuevoAncho, $nuevoAlto, $ancho, $alto);
-
-                            imagejpeg($destino, $ruta);
-
-                        }
-
-                        if($tipoImagen == "image/png"){
-
-                           
-
-                            $aleatorio = mt_rand(100,999);
-
-                            $ruta = "vistas/js/img/usuarios/".$_POST["nuevoMascota"]."/".$aleatorio.".png";
-
-                            $origen = imagecreatefrompng($_FILES["nuevaFoto"]["tmp_name"]);                    
-
-                            $destino = imagecreatetruecolor($nuevoAncho, $nuevoAlto);
-
-                            imagecopyresized($destino, $origen, 0, 0, 0, 0, $nuevoAncho, $nuevoAlto, $ancho, $alto);
-
-                            imagepng($destino, $ruta);
-                        }
-                    }
-                    $tabla="mascotas";
-                    $datos=array("nombrem"=> $_POST["nuevoMascota"], 
-                        "especie"=> $_POST["nuevoEspecie"],
-                        "raza"=> $_POST["nuevoRaza"],
-                        "fecha_Registro"=> $_POST["nuevaFecha"],
-                        "edad"=> $_POST["nuevoEdad"],
-                        "sexo"=> $_POST["nuevoSexo"],
-                        "peso"=> $_POST["nuevoPeso"],
-                        "fotoM"=> $ruta, 
-                        "IDcliente"     => $_POST["nuevoCliente"] // <-- AQUÍ LLEGA LA CLAVE FORÁNEA
-                        );
-                    
-                   
-                    $respuesta = ModeloMascotas::MdlCrearMascotas ($tabla,$datos);
-                    //Comparacion de variables o campos de la tabla de usuario
-                    if($respuesta == "ok")
-                    {
-                      
-                        echo'<script>
-                        Swal({
-                            title: "Usuario Agregado!",
-                            icon: "success",
-                            draggable: true
-
-                            }).then(function(result){
-
-                                if(result.isConfirmed)
-                                {
-                                    window.location = "Usuarios";
-                                }
-                            
-                            });
-                        </script>';
-
-                    }
-                    else
-                    {
-                        echo '<script>
-                        Swal.fire({
-                            icon: "error",
-                            title: "Oops...",
-                            text: "Algo esta mal!"
-
-                            }).then(function(result){
-
-                                if(result.isConfirmed)
-                                {
-                                    window.location = "Usuarios";
-                                }
-                            
-                            });
-                        </script>';
-                    }   
-                }
-            }
+        if (isset($_POST['nuevoMascota'])) {
+            self::ctrCrearMascotas();
+            return;
         }
-        static public function crtMostrarMascotas($item, $valor)
-        {
-            $tabla="mascotas";
-            $respuesta = ModeloMascotas :: MdlMostrarMascotas($tabla,$item, $valor);
-            return $respuesta;
+        if (isset($_POST['editarMascota'])) {
+            self::ctrModificarMascotas();
+            return;
         }
-        public function ctrModificarMascotas()
-        {
-            if(isset($_POST["editarMascota"]))
-            {
-                Seguridad::exigirAutenticacion();
-                Seguridad::exigirCsrf();
-                if(preg_match('/^[a-zA-Z0-9ñÑáéíóúÁÉÍÓÚ ]+$/',$_POST["editarMascota"]))
-                {
-                    $mascotaActual = ModeloMascotas::MdlMostrarMascotas("mascotas", "IDmascota", $_POST["IDmascota"]);
-                    if (!is_array($mascotaActual)) {
-                        http_response_code(404);
-                        return;
-                    }
-                    $ruta = $mascotaActual["fotoM"];
-
-                    if(isset($_FILES["editarFoto"]["tmp_name"]) && !empty($_FILES["editarFoto"]["tmp_name"])){
-                        $tipoImagen = Seguridad::tipoImagenSubida($_FILES["editarFoto"]);
-
-
-                       
-                        list($ancho, $alto) = getimagesize($_FILES["editarFoto"]["tmp_name"]);
-
-                        $nuevoAncho = 500;
-                        $nuevoAlto = 500;
-
-                      
-
-                        $directorio = "vistas/js/img/usuarios/".$_POST["editarMascota"];
-
-                        if(!file_exists($directorio)){
-                            mkdir($directorio, 0755);
-                        }
-
-                        Seguridad::eliminarImagenGuardada($mascotaActual["fotoM"]);
-                                
-                      
-
-                        if($tipoImagen == "image/jpeg"){
-
-                   
-                            $aleatorio = mt_rand(100,999);
-
-                            $ruta = "vistas/js/img/usuarios/".$_POST["editarMascota"]."/".$aleatorio.".jpg";
-
-                            $origen = imagecreatefromjpeg($_FILES["editarFoto"]["tmp_name"]);                        
-
-                            $destino = imagecreatetruecolor($nuevoAncho, $nuevoAlto);
-
-                            imagecopyresized($destino, $origen, 0, 0, 0, 0, $nuevoAncho, $nuevoAlto, $ancho, $alto);
-
-                            imagejpeg($destino, $ruta);
-
-                        }
-
-                        if($tipoImagen == "image/png"){
-
-                           
-
-                            $aleatorio = mt_rand(100,999);
-
-                            $ruta = "vistas/js/img/usuarios/".$_POST["editarMascota"]."/".$aleatorio.".png";
-
-                            $origen = imagecreatefrompng($_FILES["editarFoto"]["tmp_name"]);                    
-
-                            $destino = imagecreatetruecolor($nuevoAncho, $nuevoAlto);
-
-                            imagecopyresized($destino, $origen, 0, 0, 0, 0, $nuevoAncho, $nuevoAlto, $ancho, $alto);
-
-                            imagepng($destino, $ruta);
-                        }
-                    }
-                    $tabla="mascotas";
-                    $datos=array(
-                        "IDmascota" => $_POST["IDmascota"],
-                        "nombrem"=> $_POST["editarMascota"], 
-                        "especie"=> $_POST["editarEspecie"],
-                        "raza"=> $_POST["editarRaza"],
-                        "fecha_Registro"=> $_POST["editarFecha"],
-                        "edad"=> $_POST["editarEdad"],
-                        "sexo"=> $_POST["editarSexo"],
-                        "peso"=> $_POST["editarPeso"],
-                        "IDcliente"     => $_POST["editarCliente"], // <-- AQUÍ LLEGA LA CLAVE FORÁNEA
-                        "fotoM"=> $ruta);
-                    
-                   
-                    $respuesta = ModeloMascotas::MdlModificarMascotas($tabla,$datos);
-                    //Comparacion de variables o campos de la tabla de usuario
-                    if($respuesta == "ok")
-                    {
-                      
-                        echo'<script>
-                        Swal({
-                            title: "Usuario Agregado!",
-                            icon: "success",
-                            draggable: true
-
-                            }).then(function(result){
-
-                                if(result.isConfirmed)
-                                {
-                                    window.location = "Mascotas";
-                                }
-                            
-                            });
-                            
-                        </script>';
-
-                    }
-                    else
-                    {
-                        echo '<script>
-                        Swal.fire({
-                            icon: "error",
-                            title: "Oops...",
-                            text: "Algo esta mal!"
-
-                            }).then(function(result){
-
-                                if(result.isConfirmed)
-                                {
-                                    window.location = "Mascotas";
-                                }
-                            
-                            });
-                           
-                        </script>';
-                    }   
-                }
-            }
+        if (isset($_POST['IDmascota'], $_POST['estadoMascota'])) {
+            self::ctrActualizarEstadoMascota();
         }
-        public function crtEliminarMascotas()
-        {
-            if(isset($_POST["eliminarMascotaDefinitiva"], $_POST["IDmascota"]))
-            {
-                Seguridad::exigirAutenticacion();
-                Seguridad::exigirCsrf();
-                $tabla ="mascotas";
-                $datos = filter_var($_POST["IDmascota"], FILTER_VALIDATE_INT);
-                if ($datos === false) {
-                    http_response_code(422);
-                    return;
-                }
-                $respuesta = ModeloMascotas::MdlEliminarMascotas($tabla, $datos);
-
-                if($respuesta == "ok")
-                {
-                    
-                    echo'<script>
-                    Swal({
-                        title: "Mascota eliminada!",
-                        icon: "success",
-                        draggable: true
-
-                        }).then(function(result){
-
-                            if(result.isConfirmed)
-                            {
-                                window.location = "Mascotas";
-                            }
-                        
-                        });
-                    </script>';
-
-                }
-                else
-                {
-                    echo '<script>
-                    Swal    ({
-                        icon: "error",
-                        title: "Oops...",
-                        text: "Algo esta mal!"
-
-                        }).then(function(result){
-
-                            if(result.isConfirmed)
-                            {
-                                window.location = "Mascotas";
-                            }
-                        
-                        });
-                    </script>';
-                }
-            }
-            
-            
-        }
-         public function crtDesHabilitarMascotas()
-        {
-            // Corregido: isset para ambos
-            if(isset($_POST["IDmascota"], $_POST["estadoMascota"]))
-            {
-                Seguridad::exigirAutenticacion();
-                Seguridad::exigirCsrf();
-                $tabla = "mascotas";
-                $IDusuario = filter_var($_POST["IDmascota"], FILTER_VALIDATE_INT);
-                $estado = filter_var($_POST["estadoMascota"], FILTER_VALIDATE_INT);
-                if ($IDusuario === false || !in_array($estado, [0, 1], true)) {
-                    http_response_code(422);
-                    return;
-                }
-
-                // Pasamos las variables correctas
-                $respuesta = ModeloMascotas::MdlActualizarMascotas($tabla, $estado, $IDusuario);
-
-                if($respuesta == "ok")
-                {
-                    echo'<script>
-                    Swal.fire({ // Corregido a Swal.fire
-                        title: "¡Estado Actualizado!",
-                        icon: "success"
-                    }).then(function(result){
-                        window.location = "Mascotas";
-                    });
-                    </script>';
-                }
-                else
-                {
-                    echo '<script>
-                    Swal.fire({
-                        icon: "error",
-                        title: "Oops...",
-                        text: "Algo está mal!"
-                    }).then(function(result){
-                        window.location = "Mascotas";
-                    });
-                    </script>';
-                }
-            }
-        }   
     }
-        
-?>
+
+    public static function crtMostrarMascotas($item = null, $valor = null): mixed
+    {
+        return ModeloMascotas::mdlMostrarMascotas($item, $valor);
+    }
+
+    public static function ctrListarEspecies(): array
+    {
+        return ModeloMascotas::mdlListarEspecies();
+    }
+
+    public static function ctrListarRazas(?int $idEspecie = null): array
+    {
+        return ModeloMascotas::mdlListarRazas($idEspecie);
+    }
+
+    public static function ctrCrearMascotas(): void
+    {
+        Seguridad::exigirAutenticacion();
+        Seguridad::exigirCsrf();
+        $datos = self::datosFormulario('nuevo');
+        if ($datos === null) {
+            self::redirigir('danger', 'Revise los datos de la mascota e intente nuevamente.');
+        }
+
+        $respuesta = ModeloMascotas::mdlCrearMascota($datos);
+        self::responderEscritura($respuesta, 'Mascota registrada correctamente.');
+    }
+
+    public static function ctrModificarMascotas(): void
+    {
+        Seguridad::exigirAutenticacion();
+        Seguridad::exigirCsrf();
+        $idMascota = filter_var($_POST['IDmascota'] ?? null, FILTER_VALIDATE_INT);
+        $datos = self::datosFormulario('editar');
+        $actual = $idMascota === false ? null : ModeloMascotas::mdlMostrarMascotas('IDmascota', $idMascota);
+        if ($datos === null || !is_array($actual)) {
+            self::redirigir('danger', 'Los datos enviados no son válidos.');
+        }
+
+        $datos['IDmascota'] = (int) $idMascota;
+        $respuesta = ModeloMascotas::mdlEditarMascota($datos);
+        self::responderEscritura($respuesta, 'Mascota actualizada correctamente.');
+    }
+
+    public static function ctrActualizarEstadoMascota(): void
+    {
+        Seguridad::exigirAutenticacion();
+        Seguridad::exigirCsrf();
+        $idMascota = filter_var($_POST['IDmascota'] ?? null, FILTER_VALIDATE_INT);
+        $estado = filter_var($_POST['estadoMascota'] ?? null, FILTER_VALIDATE_INT);
+        if ($idMascota === false || !in_array($estado, [0, 1], true)) {
+            self::redirigir('danger', 'La operación solicitada no es válida.');
+        }
+
+        $respuesta = ModeloMascotas::mdlActualizarEstadoMascota((int) $idMascota, (int) $estado);
+        if ($respuesta === 'no_encontrado') {
+            self::redirigir('danger', 'La mascota solicitada no existe.');
+        }
+        self::redirigir(
+            'success',
+            $estado === 1 ? 'Mascota habilitada correctamente.' : 'Mascota deshabilitada correctamente.'
+        );
+    }
+
+    // Compatibilidad con nombres anteriores.
+    public static function crtDesHabilitarMascotas(): void
+    {
+        if (isset($_POST['IDmascota'], $_POST['estadoMascota'])) {
+            self::ctrActualizarEstadoMascota();
+        }
+    }
+
+    public static function crtEliminarMascotas(): void
+    {
+        if (isset($_POST['IDmascota'])) {
+            $_POST['estadoMascota'] = 0;
+            self::ctrActualizarEstadoMascota();
+        }
+    }
+
+    private static function datosFormulario(string $prefijo): ?array
+    {
+        $campos = $prefijo === 'nuevo'
+            ? [
+                'nuevoMascota', 'nuevaFechaRegistro', 'nuevaFechaNacimiento', 'nuevoPeso',
+                'nuevoSexo', 'nuevaDescripcion', 'nuevoColor', 'nuevoCliente', 'nuevaRaza',
+            ]
+            : [
+                'editarMascota', 'editarFechaRegistro', 'editarFechaNacimiento', 'editarPeso',
+                'editarSexo', 'editarDescripcion', 'editarColor', 'editarCliente', 'editarRaza',
+            ];
+        foreach ($campos as $campo) {
+            if (!isset($_POST[$campo]) || !is_string($_POST[$campo])) {
+                return null;
+            }
+        }
+
+        $nombre = trim($_POST[$campos[0]]);
+        $registro = trim($_POST[$campos[1]]);
+        $nacimiento = trim($_POST[$campos[2]]);
+        $pesoTexto = str_replace(',', '.', trim($_POST[$campos[3]]));
+        $sexo = trim($_POST[$campos[4]]);
+        $descripcion = trim($_POST[$campos[5]]);
+        $color = trim($_POST[$campos[6]]);
+        $idCliente = filter_var($_POST[$campos[7]], FILTER_VALIDATE_INT);
+        $idRaza = filter_var($_POST[$campos[8]], FILTER_VALIDATE_INT);
+
+        $cliente = $idCliente === false
+            ? null
+            : ModeloClientes::mdlMostrarClientes('IDcliente', $idCliente);
+        if (!self::nombreMascotaValido($nombre)
+            || !self::fechaValida($registro) || !self::fechaValida($nacimiento)
+            || $nacimiento > $registro
+            || !is_numeric($pesoTexto) || (float) $pesoTexto <= 0 || (float) $pesoTexto > 9999.99
+            || !in_array($sexo, self::SEXOS, true)
+            || mb_strlen($descripcion) > 255 || mb_strlen($color) > 50
+            || ($color !== '' && preg_match("/^[\p{L}\p{M} 0-9.,'-]+$/u", $color) !== 1)
+            || !is_array($cliente) || (int) $cliente['habilitadoC'] !== 1
+            || $idRaza === false || !ModeloMascotas::mdlExisteRaza((int) $idRaza)) {
+            return null;
+        }
+
+        return [
+            'nombre' => $nombre,
+            'registro' => $registro,
+            'nacimiento' => $nacimiento,
+            'peso' => number_format((float) $pesoTexto, 2, '.', ''),
+            'sexo' => $sexo,
+            'descripcion' => $descripcion,
+            'color' => $color,
+            'IDcliente' => (int) $idCliente,
+            'IDraza' => (int) $idRaza,
+        ];
+    }
+
+    private static function nombreMascotaValido(string $nombre): bool
+    {
+        return mb_strlen($nombre) >= 1 && mb_strlen($nombre) <= 50
+            && preg_match("/^[\p{L}\p{M}0-9 .'-]+$/u", $nombre) === 1;
+    }
+
+    private static function fechaValida(string $fecha): bool
+    {
+        $objeto = DateTimeImmutable::createFromFormat('!Y-m-d', $fecha);
+        return $objeto !== false && $objeto->format('Y-m-d') === $fecha
+            && $fecha <= date('Y-m-d');
+    }
+
+    private static function responderEscritura(string $respuesta, string $mensajeOk): void
+    {
+        if ($respuesta === 'ok') {
+            self::redirigir('success', $mensajeOk);
+        }
+        self::redirigir(
+            'danger',
+            $respuesta === 'relacion_invalida'
+                ? 'El dueño o la raza seleccionada ya no está disponible.'
+                : 'No se pudo guardar la mascota.'
+        );
+    }
+
+    private static function redirigir(string $tipo, string $mensaje): void
+    {
+        $_SESSION['mascota_flash'] = ['tipo' => $tipo, 'mensaje' => $mensaje];
+        header('Location: Mascotas');
+        exit;
+    }
+}

@@ -1,154 +1,169 @@
-<?php 
+<?php
 
-    require_once "conexion.php";
-    class ModeloUsuarios
+require_once __DIR__ . '/conexion.php';
+
+final class ModeloUsuarios
+{
+    private const COLUMNAS_FILTRO = [
+        'IDusuario' => 'u.IDusuario',
+        'IDrol' => 'u.IDrol',
+        'email_U' => 'u.email_U',
+        'correo' => 'u.email_U',
+        'Usunombre' => 'u.email_U',
+        'estado_U' => 'u.estado_U',
+    ];
+
+    private static function seleccionBase(): string
     {
-        static public function MdlMostrarUsuarios($tabla,$item, $valor): mixed
-        {
-            if($item != null)
-            {
-                $stmt=Conexion :: Conectar()-> prepare("SELECT * FROM $tabla WHERE $item=:$item AND habilitado = 1");
-                $stmt->bindParam(":".$item, $valor, PDO:: PARAM_STR);
-                $stmt->execute();
+        // Alias temporales para los módulos que todavía esperan el esquema anterior.
+        return "SELECT u.*, r.nombre_Rol,
+                       u.nombre_U AS nombre,
+                       u.apellido_U AS apellido,
+                       u.telefono_U AS telefono,
+                       u.email_U AS correo,
+                       u.email_U AS Usunombre,
+                       u.turno_U AS turno,
+                       u.sesion_U AS estado,
+                       u.estado_U AS habilitado
+                FROM usuarios u
+                INNER JOIN rol r ON r.IDrol = u.IDrol";
+    }
 
-                return $stmt->fetch() ?: null;
-            }
-            else
-            {
-                $stmt=Conexion :: Conectar()-> prepare("SELECT * FROM $tabla ");
-                $stmt->execute();
-                return  $stmt->fetchAll();
-            }
-            $stmt ->close();
+    public static function mdlMostrarUsuarios($tabla = 'usuarios', $item = null, $valor = null): mixed
+    {
+        $sql = self::seleccionBase();
+        $parametros = [];
 
-            $stmt= null;
+        if ($item !== null) {
+            if (!isset(self::COLUMNAS_FILTRO[$item])) {
+                throw new InvalidArgumentException('Filtro de usuario no permitido.');
+            }
+            $sql .= ' WHERE ' . self::COLUMNAS_FILTRO[$item] . ' = :valor';
+            $parametros[':valor'] = $valor;
         }
-        static public function MdlActualizarEstado($tabla, $estado, $idUsuario) 
-        {
 
-            $stmt = Conexion::Conectar()->prepare("UPDATE $tabla SET estado = :estado WHERE IDusuario = :IDusuario");
+        $sql .= ' ORDER BY u.nombre_U, u.apellido_U';
+        $stmt = Conexion::conectar()->prepare($sql);
+        $stmt->execute($parametros);
+        return $item === null ? $stmt->fetchAll() : ($stmt->fetch() ?: null);
+    }
 
-            $stmt->bindParam(":estado", $estado, PDO::PARAM_INT);
-            $stmt->bindParam(":IDusuario", $idUsuario, PDO::PARAM_INT);
+    public static function mdlBuscarPorCorreo(string $correo): ?array
+    {
+        $stmt = Conexion::conectar()->prepare(
+            self::seleccionBase() . ' WHERE u.email_U = :correo AND u.estado_U = 1 LIMIT 1'
+        );
+        $stmt->execute([':correo' => $correo]);
+        return $stmt->fetch() ?: null;
+    }
 
-            if($stmt->execute()) {
-                return "ok";
-            } else {
-                return "error";
-            }
-
-            $stmt->close();
-            $stmt = null;
-        }
-        static public function MdlCrearUsuarios($tabla, $datos)
-        {
-            $stmt = Conexion::Conectar()->prepare("INSERT INTO $tabla(nombre, apellido, Usunombre, password, telefono, correo, turno, foto) VALUES (:nombre, :apellido, :Usunombre , :password, :telefono, :correo, :turno, :foto)");
-
-            // Separar cada bindParam con punto y coma (;)
-            $stmt->bindParam(":nombre", $datos["nombre"], PDO::PARAM_STR);
-            $stmt->bindParam(":apellido", $datos["apellido"], PDO::PARAM_STR);
-            $stmt->bindParam(":Usunombre", $datos["Usunombre"], PDO::PARAM_STR);
-            $stmt->bindParam(":password", $datos["password"], PDO::PARAM_STR);
-            $stmt->bindParam(":telefono", $datos["telefono"], PDO::PARAM_STR);
-            $stmt->bindParam(":correo", $datos["correo"], PDO::PARAM_STR);
-            $stmt->bindParam(":turno", $datos["turno"], PDO::PARAM_STR);
-            $stmt->bindParam(":foto", $datos["foto"], PDO::PARAM_STR);
-
-            if($stmt->execute()){
-                return "ok"; // Cambiar 'esta bien' por 'ok' para que el controlador lo entienda
-            } else {
-                return "error";
-            }
-
-            $stmt = null;
-        }
-        static public function  MdlEditarUsuarios($tabla,$datos)
-        {
-            
-            $stmt = Conexion::Conectar()->prepare("UPDATE $tabla SET 
-            nombre = :nombre,
-            apellido = :apellido,
-            Usunombre = :Usunombre,
-            password = :password,
-            telefono = :telefono,
-            correo = :correo,
-            turno = :turno,
-            foto = :foto
-            WHERE IDusuario = :IDusuario");
-
-            $stmt->bindParam(":IDusuario", $datos["IDusuario"], PDO::PARAM_INT);
-            $stmt-> bindParam(":nombre",$datos["nombre"],PDO::PARAM_STR );
-            $stmt-> bindParam(":apellido",$datos["apellido"],PDO::PARAM_STR );
-            $stmt-> bindParam(":Usunombre",$datos["Usunombre"],PDO::PARAM_STR );
-            $stmt-> bindParam(":password",$datos["password"],PDO::PARAM_STR );
-            $stmt-> bindParam(":telefono",$datos["telefono"],PDO::PARAM_STR );
-            $stmt-> bindParam(":correo",$datos["correo"],PDO::PARAM_STR )     ;  
-            $stmt-> bindParam(":turno",$datos["turno"],PDO::PARAM_STR );
-            $stmt-> bindParam(":foto",$datos["foto"],PDO::PARAM_STR );
-
-            
-
-            if($stmt->execute())
-            {
-
-                return 'ok';
-
-            }
-            else
-            {
-               
-                return "error";
-            }
-            $stmt ->close();
-
-            $stmt= null;
-        }
-        static public function MdlEliminarUsuarios($tabla, $datos)
-        {
-            $stmt = Conexion::Conectar()->prepare("DELETE FROM $tabla WHERE IDusuario= :IDusuario");
-
-            $stmt->bindParam(":IDusuario", $datos, PDO::PARAM_INT);
-            if($stmt->execute())
-            {
-
-                return 'ok';
-
-            }
-            else
-            {
-                
-                return "error";
-            }
-            $stmt ->close();
-        }
-        
-        // Cambiado para recibir la tabla, el estado (0 o 1) y el IDusuario
-        static public function MdlActualizarUsuarios($tabla, $estado, $IDusuario)
-        {
-            // Cambiado: SET habilitado = :habilitado
-            $stmt = Conexion::Conectar()->prepare("UPDATE $tabla SET habilitado = :habilitado WHERE IDusuario = :IDusuario");
-
-            $stmt->bindParam(":habilitado", $estado, PDO::PARAM_INT);
-            $stmt->bindParam(":IDusuario", $IDusuario, PDO::PARAM_INT);
-
-            if($stmt->execute())
-            {
-                return 'ok';
-            }
-            else
-            {
-                return "error";
-            }
-
-            $stmt->close();
-            $stmt = null;
+    public static function mdlCrearUsuario(array $datos): string
+    {
+        try {
+            $stmt = Conexion::conectar()->prepare(
+                'INSERT INTO usuarios
+                    (nombre_U, apellido_U, telefono_U, email_U, password, turno_U,
+                     estado_U, sesion_U, foto, IDrol)
+                 VALUES
+                    (:nombre, :apellido, :telefono, :correo, :password, :turno,
+                     1, 0, :foto, :IDrol)'
+            );
+            $stmt->execute(self::parametrosEscritura($datos));
+            return 'ok';
+        } catch (PDOException $e) {
+            return $e->getCode() === '23000' ? 'duplicado' : 'error';
         }
     }
-    
 
+    public static function mdlEditarUsuario(array $datos): string
+    {
+        try {
+            $stmt = Conexion::conectar()->prepare(
+                'UPDATE usuarios SET
+                    nombre_U = :nombre,
+                    apellido_U = :apellido,
+                    telefono_U = :telefono,
+                    email_U = :correo,
+                    password = :password,
+                    turno_U = :turno,
+                    foto = :foto,
+                    IDrol = :IDrol
+                 WHERE IDusuario = :IDusuario'
+            );
+            $parametros = self::parametrosEscritura($datos);
+            $parametros[':IDusuario'] = (int) $datos['IDusuario'];
+            $stmt->execute($parametros);
+            return 'ok';
+        } catch (PDOException $e) {
+            return $e->getCode() === '23000' ? 'duplicado' : 'error';
+        }
+    }
 
+    public static function mdlActualizarEstadoUsuario(int $idUsuario, int $estado): string
+    {
+        $stmt = Conexion::conectar()->prepare(
+            'UPDATE usuarios
+             SET estado_U = :estado,
+                 sesion_U = CASE WHEN :estadoSesion = 0 THEN 0 ELSE sesion_U END
+             WHERE IDusuario = :IDusuario'
+        );
+        $stmt->execute([
+            ':estado' => $estado,
+            ':estadoSesion' => $estado,
+            ':IDusuario' => $idUsuario,
+        ]);
+        return $stmt->rowCount() === 1 ? 'ok' : 'sin_cambios';
+    }
 
+    public static function mdlActualizarSesion(int $idUsuario, int $sesion): string
+    {
+        $stmt = Conexion::conectar()->prepare(
+            'UPDATE usuarios SET sesion_U = :sesion WHERE IDusuario = :IDusuario'
+        );
+        $stmt->execute([':sesion' => $sesion, ':IDusuario' => $idUsuario]);
+        return 'ok';
+    }
 
+    public static function mdlActualizarPassword(int $idUsuario, string $hash): string
+    {
+        $stmt = Conexion::conectar()->prepare(
+            'UPDATE usuarios SET password = :password WHERE IDusuario = :IDusuario'
+        );
+        return $stmt->execute([':password' => $hash, ':IDusuario' => $idUsuario]) ? 'ok' : 'error';
+    }
 
+    private static function parametrosEscritura(array $datos): array
+    {
+        return [
+            ':nombre' => $datos['nombre'],
+            ':apellido' => $datos['apellido'],
+            ':telefono' => $datos['telefono'],
+            ':correo' => $datos['correo'],
+            ':password' => $datos['password'],
+            ':turno' => $datos['turno'],
+            ':foto' => $datos['foto'],
+            ':IDrol' => (int) $datos['IDrol'],
+        ];
+    }
 
-?>
+    // Compatibilidad con llamadas existentes durante la migración por módulos.
+    public static function MdlCrearUsuarios($tabla, array $datos): string
+    {
+        return self::mdlCrearUsuario($datos);
+    }
+
+    public static function MdlEditarUsuarios($tabla, array $datos): string
+    {
+        return self::mdlEditarUsuario($datos);
+    }
+
+    public static function MdlActualizarEstado($tabla, $estado, $idUsuario): string
+    {
+        return self::mdlActualizarSesion((int) $idUsuario, (int) $estado);
+    }
+
+    public static function MdlActualizarUsuarios($tabla, $estado, $idUsuario): string
+    {
+        return self::mdlActualizarEstadoUsuario((int) $idUsuario, (int) $estado);
+    }
+}

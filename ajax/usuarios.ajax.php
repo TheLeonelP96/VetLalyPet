@@ -1,40 +1,31 @@
 <?php
 
-    require_once "../core/Seguridad.php";
-    Seguridad::exigirRol([1], true);
+require_once __DIR__ . '/../core/Seguridad.php';
+require_once __DIR__ . '/../controlador/Usuarios.controlador.php';
+require_once __DIR__ . '/../modelos/Usuarios.modelos.php';
 
-    require_once "../controlador/Usuarios.controlador.php";
-    require_once "../modelos/Usuarios.modelos.php";
+header('Content-Type: application/json; charset=utf-8');
+Seguridad::exigirRol([1], true);
 
-    
-    class ajaxUsuarios
-    {
-        public $IDusuario;
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !Seguridad::validarCsrf()) {
+    http_response_code(403);
+    echo json_encode(['error' => 'Solicitud inválida o vencida.']);
+    exit;
+}
 
-        public function ajaxEditarUsuarios()
-        {
-           $item="IDusuario";
-           $valor= $this->IDusuario;
-           
-           $respuesta= ControladorUsuarios::ctrMostrarUsuarios($item, $valor);
-           if (is_array($respuesta)) {
-               unset($respuesta['password']);
-           }
-           header('Content-Type: application/json; charset=utf-8');
-           echo json_encode($respuesta);
-           
-        }
+$idUsuario = filter_var($_POST['IDusuario'] ?? null, FILTER_VALIDATE_INT);
+if ($idUsuario === false) {
+    http_response_code(422);
+    echo json_encode(['error' => 'El usuario solicitado no es válido.']);
+    exit;
+}
 
-    }
-    if(isset($_POST["IDusuario"]))
-    {
-        $editar=new ajaxUsuarios();
-        $editar->IDusuario=$_POST["IDusuario"];
-        $editar->ajaxEditarUsuarios ();
-    }
+$usuario = ControladorUsuarios::ctrMostrarUsuarios('IDusuario', (int) $idUsuario);
+if (!is_array($usuario)) {
+    http_response_code(404);
+    echo json_encode(['error' => 'Usuario no encontrado.']);
+    exit;
+}
 
-
-
-
-
-?>
+unset($usuario['password']);
+echo json_encode($usuario, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

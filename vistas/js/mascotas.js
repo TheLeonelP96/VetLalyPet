@@ -1,110 +1,98 @@
-//Editar mascotas
-$(document).on("click", ".btnEditMascotas", function()
-{
-    var IDmascota = $(this).attr("dataid");
+(function ($) {
+    "use strict";
 
-    var datos = new FormData();
+    function tokenCsrf() {
+        return $("meta[name='csrf-token']").attr("content") || "";
+    }
 
-    datos.append("IDmascota", IDmascota);
+    function mostrarError(mensaje) {
+        Swal.fire({ icon: "error", title: "No se pudo completar", text: mensaje });
+    }
 
-    $.ajax({
-        url:"ajax/mascotas.ajax.php",
-        method: "POST",
-        data: datos,
-        cache: false,
-        contentType: false,
-        processData: false, 
-        dataType:"json",
-        success:function(respuesta)
-        {
-            console.log(respuesta);
+    function filtrarRazas(selectorEspecie, selectorRaza, razaSeleccionada) {
+        var idEspecie = String($(selectorEspecie).val() || "");
+        var $raza = $(selectorRaza);
+        $raza.find("option[data-especie]").each(function () {
+            var visible = String($(this).data("especie")) === idEspecie;
+            $(this).prop("disabled", !visible).toggle(visible);
+        });
+        $raza.val(razaSeleccionada ? String(razaSeleccionada) : "");
+    }
 
-            $("#IDmascota").val(respuesta["IDmascota"]);
-            $("#editarMascota").val(respuesta["nombrem"]);
-            $("#editarEspecie").val(respuesta["especie"]);
-            $("#editarRaza").val(respuesta["raza"]);
-            $("#editarFecha").val(respuesta["fecha_Registro"]);//5
-            $("#editarEdad").val(respuesta["edad"]);
-            $("#editarSexo").val(respuesta["sexo"]);
-            $("#editarCliente").val(respuesta["IDcliente"]);
-            $("#editarPeso").val(respuesta["peso"]);
-            $("#editarFoto").val(respuesta["fotoM"]);
-            $("#fotoActual").val(respuesta["fotoM"]);
+    $(document).on("change", "#nuevaEspecie", function () {
+        filtrarRazas("#nuevaEspecie", "#nuevaRaza");
+    });
 
-            if(respuesta["fotoM"] != "") 
-            {
-                $(".previsualizar").attr("src", respuesta["fotoM"]);
-            } else 
-            {
-                $(".previsualizar").attr("src", "vistas/img/images.jpg"); // Una imagen por defecto
+    $(document).on("change", "#editarEspecie", function () {
+        filtrarRazas("#editarEspecie", "#editarRaza");
+    });
+
+    $(document).on("click", ".btnEditMascota", function () {
+        $.ajax({
+            url: "ajax/mascotas.ajax.php",
+            method: "POST",
+            data: {
+                IDmascota: $(this).data("id"),
+                csrf_token: tokenCsrf()
+            },
+            dataType: "json"
+        }).done(function (mascota) {
+            $("#IDmascota").val(mascota.IDmascota);
+            $("#editarMascota").val(mascota.nombrem);
+            $("#editarFechaRegistro").val(mascota.fecha_Registro);
+            $("#editarFechaNacimiento").val(mascota.fechaNac_m);
+            $("#editarPeso").val(mascota.peso);
+            $("#editarSexo").val(mascota.sexo);
+            $("#editarDescripcion").val(mascota.descripcion || "");
+            $("#editarColor").val(mascota.color || "");
+            $("#editarCliente").val(mascota.IDcliente);
+            $("#editarEspecie").val(mascota.IDespecie);
+            filtrarRazas("#editarEspecie", "#editarRaza", mascota.IDraza);
+            $("#modMascota").modal("show");
+        }).fail(function (xhr) {
+            mostrarError(xhr.responseJSON && xhr.responseJSON.error
+                ? xhr.responseJSON.error
+                : "No fue posible cargar la mascota.");
+        });
+    });
+
+    $(document).on("click", ".btnEstadoMascota", function () {
+        var idMascota = $(this).data("id");
+        var estado = Number($(this).data("estado"));
+        var habilitar = estado === 1;
+        Swal.fire({
+            icon: "warning",
+            title: habilitar ? "¿Habilitar esta mascota?" : "¿Deshabilitar esta mascota?",
+            text: habilitar
+                ? "Volverá a estar disponible para nuevas operaciones."
+                : "Su historial y sus datos se conservarán.",
+            showCancelButton: true,
+            confirmButtonColor: habilitar ? "#26b99a" : "#d9534f",
+            cancelButtonColor: "#73879c",
+            confirmButtonText: habilitar ? "Sí, habilitar" : "Sí, deshabilitar",
+            cancelButtonText: "Cancelar"
+        }).then(function (resultado) {
+            if (!resultado.isConfirmed) {
+                return;
             }
-        }
-
-    });
-});
-//Eliminar usuarios
-$(document).on("click", ".btnEliminarMascota", function(){
-
-    var IDmascota = $(this).attr("IDmascota");
-
-    Swal.fire({
-    title: "Esta seguro de eliminar la mascota?",
-    text: "Aun puede cancelar la accion",
-    icon:"warning" ,
-    showCancelButton: true,
-    cancelButtoncolor:"#3085d6",
-    confirmButtoncolor:"#d33",
-    cancelButtontext:"Cancelar",
-    confirmButtonText: "Eliminar"
-    
-    }).then(function (result) {
-        
-        if(result.isConfirmed)
-        {
-            enviarAccionProtegida("index.php?ruta=Mascotas", {IDmascota: IDmascota, estadoMascota: 0});
-        }
+            var formulario = $("<form>", { method: "POST", action: "Mascotas" });
+            formulario.append($("<input>", { type: "hidden", name: "csrf_token", value: tokenCsrf() }));
+            formulario.append($("<input>", { type: "hidden", name: "IDmascota", value: idMascota }));
+            formulario.append($("<input>", { type: "hidden", name: "estadoMascota", value: estado }));
+            $(document.body).append(formulario);
+            formulario.trigger("submit");
+        });
     });
 
-}); 
-$(document).on("click", ".btnDesactivarM", function(){
-
-    var IDmascota = $(this).attr("IDmascota");
-
-    Swal.fire({
-        title: "¿Está seguro de eliminar al usuario?",
-        text: "Aún puede cancelar la acción",
-        icon: "warning", // Cambiado 'type' por 'icon' que usa SweetAlert2
-        showCancelButton: true,
-        confirmButtonColor: "#d33", // C mayúscula
-        cancelButtonColor: "#3085d6",  // C mayúscula
-        confirmButtonText: "Eliminar",
-        cancelButtonText: "Cancelar" // T mayúscula
-    }).then(function (result) {
-        if(result.isConfirmed) {
-            enviarAccionProtegida("index.php?ruta=Mascotas", {IDmascota: IDmascota, estadoMascota: 0});
+    $("#modalMascota, #modMascota").on("hidden.bs.modal", function () {
+        var formulario = $(this).find("form")[0];
+        if (formulario) {
+            formulario.reset();
         }
-    });
-});
-$(document).on("click", ".btnActivarM", function(){
-
-    var IDmascota = $(this).attr("IDmascota");
-
-    Swal.fire({
-    title: "Esta seguro de habilitar al usuario?",
-    text: "Aun puede cancelar la accion",
-    type:"warning" ,
-    showCancelButton: true,
-    cancelButtoncolor:"#3085d6",
-    cancelButtontext:"Cancelar",
-    confirmButtoncolor:"#d33",
-    confirmButtonText: "Restaurar"
-    
-    }).then(function (result) {
-        
-        if(result.isConfirmed)
-        {
-            enviarAccionProtegida("index.php?ruta=Mascotas", {IDmascota: IDmascota, estadoMascota: 1});
-        }
+        var prefijo = this.id === "modalMascota" ? "nueva" : "editar";
+        filtrarRazas("#" + prefijo + "Especie", "#" + prefijo + "Raza");
     });
 
-}); 
+    filtrarRazas("#nuevaEspecie", "#nuevaRaza");
+    filtrarRazas("#editarEspecie", "#editarRaza");
+})(jQuery);
