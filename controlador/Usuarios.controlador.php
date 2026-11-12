@@ -1,9 +1,12 @@
 <?php
+// Controla autenticación, usuarios, roles, permisos y actualización de perfiles.
 
 final class ControladorUsuarios
 {
     private const ROLES_VALIDOS = [1, 2, 3];
     private const TURNOS_VALIDOS = ['Mañana', 'Tarde', 'Horario continuo'];
+    private const MAX_INTENTOS_LOGIN = 3;
+    private const BLOQUEO_LOGIN_SEGUNDOS = 900;
 
     public static function ctrProcesarSolicitud(): void
     {
@@ -22,6 +25,8 @@ final class ControladorUsuarios
 
     public static function ctrIngresarUsuarios(): void
     {
+        Seguridad::iniciarSesion();
+        self::verificarBloqueoLogin();
         $correoRecibido = $_POST['imgEmail'] ?? $_POST['imgUsuario'] ?? null;
         if ($correoRecibido === null) {
             return;
@@ -34,9 +39,12 @@ final class ControladorUsuarios
             self::fallarLogin();
         }
 
-        $usuario = ModeloUsuarios::mdlBuscarPorCorreo($correo);
+        $usuario = ModeloUsuarios::mdlBuscarPorCorreoSinFiltrarEstado($correo);
         if (!is_array($usuario) || !password_verify($password, $usuario['password'])) {
             self::fallarLogin();
+        }
+        if ((int) $usuario['estado_U'] !== 1) {
+            self::fallarLogin('deshabilitada');
         }
 
         if (password_needs_rehash($usuario['password'], PASSWORD_DEFAULT)) {
@@ -47,9 +55,10 @@ final class ControladorUsuarios
         }
 
         session_regenerate_id(true);
+        self::reiniciarIntentosLogin();
         self::guardarUsuarioEnSesion($usuario);
         ModeloUsuarios::mdlActualizarSesion((int) $usuario['IDusuario'], 1);
-        header('Location: Inicio');
+        header('Location: Perfil');
         exit;
     }
 
@@ -328,11 +337,62 @@ final class ControladorUsuarios
         return in_array($turno, self::TURNOS_VALIDOS, true) ? $turno : null;
     }
 
-    private static function fallarLogin(): void
+    private static function fallarLogin(string $motivo = 'credenciales'): void
     {
-        $_SESSION['login_error'] = 'Correo o contraseña incorrectos, o la cuenta está deshabilitada.';
+        Seguridad::iniciarSesion();
+        $bloqueado = false;
+        $intentosRestantes = null;
+        if ($motivo !== 'deshabilitada') {
+            $resultado = self::registrarFalloLogin();
+            $bloqueado = $resultado['bloqueado'];
+            $intentosRestantes = $resultado['restantes'];
+        }
+        if ($bloqueado) {
+            $_SESSION['login_error'] = 'Se alcanzaron 3 intentos fallidos. El acceso se bloqueó durante 15 minutos.';
+            $_SESSION['login_error_tipo'] = 'warning';
+            header('Location: ./');
+            exit;
+        }
+        $_SESSION['login_error'] = $motivo === 'deshabilitada'
+            ? 'La cuenta está deshabilitada. Contacte al administrador.'
+            : 'Correo electrónico o contraseña incorrectos.' . ($intentosRestantes !== null
+                ? ' Intentos restantes: ' . $intentosRestantes . '.' : '');
+        $_SESSION['login_error_tipo'] = $motivo === 'deshabilitada' ? 'warning' : 'danger';
         header('Location: ./');
         exit;
+    }
+
+    // Impide nuevos intentos mientras la sesión tenga un bloqueo vigente.
+    private static function verificarBloqueoLogin(): void
+    {
+        $bloqueoHasta = (int) ($_SESSION['login_bloqueado_hasta'] ?? 0);
+        if ($bloqueoHasta > time()) {
+            $_SESSION['login_error'] = 'Acceso bloqueado temporalmente. Intente nuevamente más tarde.';
+            $_SESSION['login_error_tipo'] = 'warning';
+            header('Location: ./');
+            exit;
+        }
+        if ($bloqueoHasta > 0) {
+            self::reiniciarIntentosLogin();
+        }
+    }
+
+    // Suma un intento fallido y activa el bloqueo al llegar al límite.
+    private static function registrarFalloLogin(): array
+    {
+        $intentos = (int) ($_SESSION['login_intentos'] ?? 0) + 1;
+        $_SESSION['login_intentos'] = $intentos;
+        if ($intentos >= self::MAX_INTENTOS_LOGIN) {
+            $_SESSION['login_bloqueado_hasta'] = time() + self::BLOQUEO_LOGIN_SEGUNDOS;
+            return ['bloqueado' => true, 'restantes' => 0];
+        }
+        return ['bloqueado' => false, 'restantes' => self::MAX_INTENTOS_LOGIN - $intentos];
+    }
+
+    // Limpia el contador después de un acceso exitoso o al terminar el bloqueo.
+    private static function reiniciarIntentosLogin(): void
+    {
+        unset($_SESSION['login_intentos'], $_SESSION['login_bloqueado_hasta']);
     }
 
     private static function redirigirUsuarios(string $tipo, string $mensaje): void

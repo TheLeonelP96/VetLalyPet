@@ -1,11 +1,12 @@
 <?php
+// Endpoint AJAX para cargar vacunas, advertencias y registros del historial.
 
 require_once __DIR__ . '/../core/Seguridad.php';
 require_once __DIR__ . '/../controlador/HistorialVacunas.controlador.php';
 require_once __DIR__ . '/../modelos/HistorialVacunas.modelos.php';
 
 header('Content-Type: application/json; charset=utf-8');
-Seguridad::exigirAutenticacion(true);
+Seguridad::exigirRol([1, 2], true);
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !Seguridad::validarCsrf()) {
     http_response_code(403);
@@ -14,15 +15,15 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !Seguridad::validarCsrf()) {
 }
 
 $accion = $_POST['accion'] ?? '';
-if ($accion === 'opciones_mascota') {
-    $idMascota = filter_var($_POST['IDmascota'] ?? null, FILTER_VALIDATE_INT);
-    if ($idMascota === false || (int) $idMascota < 1) {
+if ($accion === 'opciones_cita') {
+    $idCita = filter_var($_POST['IDcita'] ?? null, FILTER_VALIDATE_INT);
+    if ($idCita === false || (int) $idCita < 1) {
         http_response_code(422);
-        echo json_encode(['error' => 'La mascota seleccionada no es válida.']);
+        echo json_encode(['error' => 'La cita seleccionada no es válida.']);
         exit;
     }
     echo json_encode(
-        ControladorHistorialVacunas::ctrListarOpcionesMascota((int) $idMascota),
+        ControladorHistorialVacunas::ctrListarOpcionesCita((int) $idCita),
         JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
     );
     exit;

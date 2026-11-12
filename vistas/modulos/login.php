@@ -14,10 +14,10 @@
                                name="imgPassword" maxlength="200" autocomplete="current-password" required>
                     </div>
                     <?php if (!empty($_SESSION['login_error'])): ?>
-                        <div class="alert alert-danger" role="alert">
+                        <div class="alert alert-<?php echo Seguridad::escapar($_SESSION['login_error_tipo'] ?? 'danger'); ?>" role="alert">
                             <?php echo Seguridad::escapar($_SESSION['login_error']); ?>
                         </div>
-                        <?php unset($_SESSION['login_error']); ?>
+                        <?php unset($_SESSION['login_error'], $_SESSION['login_error_tipo']); ?>
                     <?php endif; ?>
                     <div class="text-center">
                         <button type="submit" class="btn bg-gradient-dark w-100 my-4 mb-2">Ingresar</button>

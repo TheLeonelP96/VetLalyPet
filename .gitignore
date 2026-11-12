@@ -1,5 +1,7 @@
 /.env
 /respaldos/
+/CodexCosas/
+/database/backups/
 *.log
 .DS_Store
 Thumbs.db

@@ -2,22 +2,23 @@
 $vacunas = ControladorVacunas::ctrMostrarVacunas();
 $especies = ControladorVacunas::ctrListarEspecies();
 $flash = $_SESSION['vacuna_flash'] ?? null;
+$administraVacunas = (int) ($_SESSION['IDrol'] ?? 0) === 1;
 unset($_SESSION['vacuna_flash']);
 ?>
 <div class="right_col" role="main">
     <div class="page-title">
         <div class="title_left"><h3>Vacunas <small>Compatibilidad por especie</small></h3></div>
-        <div class="title_right">
+        <?php if ($administraVacunas): ?><div class="title_right">
             <button class="btn btn-primary pull-right" data-toggle="modal" data-target="#modalVacuna"
                     <?php echo $especies === [] ? 'disabled' : ''; ?>>
                 <i class="fa fa-plus"></i> Agregar vacuna
             </button>
-        </div>
+        </div><?php endif; ?>
     </div>
     <div class="clearfix"></div>
 
     <?php if (is_array($flash)): ?>
-        <div class="alert alert-<?php echo Seguridad::escapar($flash['tipo']); ?> alert-dismissible" role="alert">
+        <div class="app-flash alert alert-<?php echo Seguridad::escapar($flash['tipo']); ?> alert-dismissible" data-tipo="<?php echo Seguridad::escapar($flash['tipo']); ?>" role="alert">
             <button type="button" class="close" data-dismiss="alert">&times;</button>
             <?php echo Seguridad::escapar($flash['mensaje']); ?>
         </div>
@@ -37,7 +38,7 @@ unset($_SESSION['vacuna_flash']);
                         <th>Descripción</th>
                         <th>Especie compatible</th>
                         <th>Precio</th>
-                        <th>Stock</th>
+                        <th>Stock</th><th>Stock mínimo</th>
                         <th>Estado</th>
                         <th>Acciones</th>
                     </tr></thead>
@@ -53,15 +54,16 @@ unset($_SESSION['vacuna_flash']);
                             <td><span class="label label-info"><?php echo Seguridad::escapar($vacuna['nombre_Especie']); ?></span></td>
                             <td>Bs <?php echo number_format((float) $vacuna['preciovac'], 2, '.', ','); ?></td>
                             <td>
-                                <span class="label label-<?php echo $stock === 0 ? 'danger' : ($stock <= 5 ? 'warning' : 'success'); ?>">
+                                <span class="label label-<?php echo $stock === 0 ? 'danger' : ($stock <= (int) $vacuna['stockMinimo'] ? 'warning' : 'success'); ?>">
                                     <?php echo $stock; ?>
                                 </span>
                             </td>
-                            <td>
+                            <td><?php echo (int) $vacuna['stockMinimo']; ?></td>
+                            <td><?php if ($administraVacunas): ?>
                                 <span class="label label-<?php echo $habilitada ? 'success' : 'default'; ?>">
                                     <?php echo $habilitada ? 'Habilitada' : 'Deshabilitada'; ?>
                                 </span>
-                            </td>
+                            <?php else: ?><span class="text-muted">Solo consulta</span><?php endif; ?></td>
                             <td>
                                 <div class="btn-group">
                                     <button type="button" class="btn btn-warning btnEditVacuna"
@@ -86,7 +88,7 @@ unset($_SESSION['vacuna_flash']);
     </div>
 </div>
 
-<div id="modalVacuna" class="modal fade" role="dialog">
+<?php if ($administraVacunas): ?><div id="modalVacuna" class="modal fade" role="dialog">
     <div class="modal-dialog"><div class="modal-content">
         <form method="post" action="Vacunas">
             <?php echo Seguridad::campoCsrf(); ?>
@@ -105,6 +107,7 @@ unset($_SESSION['vacuna_flash']);
                 </select></div>
                 <div class="form-group"><label>Precio (Bs)</label><input type="number" class="form-control input-lg" name="nuevoPrecioVacuna" min="0" max="99999999.99" step="0.01" required></div>
                 <div class="form-group"><label>Stock</label><input type="number" class="form-control input-lg" name="nuevoStockVacuna" min="0" step="1" required></div>
+                <div class="form-group"><label>Stock mínimo para alerta</label><input type="number" class="form-control input-lg" name="nuevoStockMinimo" min="0" step="1" value="5" required><small class="help-block">Se mostrará una alerta cuando las existencias sean iguales o menores a este valor.</small></div>
             </div></div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-default pull-left" data-dismiss="modal">Cerrar</button>
@@ -134,6 +137,7 @@ unset($_SESSION['vacuna_flash']);
                 </select></div>
                 <div class="form-group"><label>Precio (Bs)</label><input type="number" class="form-control input-lg" id="editarPrecioVacuna" name="editarPrecioVacuna" min="0" max="99999999.99" step="0.01" required></div>
                 <div class="form-group"><label>Stock</label><input type="number" class="form-control input-lg" id="editarStockVacuna" name="editarStockVacuna" min="0" step="1" required></div>
+                <div class="form-group"><label>Stock mínimo para alerta</label><input type="number" class="form-control input-lg" id="editarStockMinimo" name="editarStockMinimo" min="0" step="1" required></div>
             </div></div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-default pull-left" data-dismiss="modal">Cerrar</button>
@@ -142,3 +146,4 @@ unset($_SESSION['vacuna_flash']);
         </form>
     </div></div>
 </div>
+<?php endif; ?>

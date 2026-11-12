@@ -1,37 +1,41 @@
 <?php
+// Contiene las consultas de citas, disponibilidad, servicios asociados y estados.
 
 require_once __DIR__ . '/conexion.php';
 
 final class ModeloCitas
 {
-    private const ESTADO_CANCELADA = 'Cancelada';
+    private const DURACION_BLOQUE_MINUTOS = 15;
     private const FILTROS = [
-        'IDcita' => 'c.IDcita',
-        'IDusuario' => 'c.IDusuario',
-        'IDmascota' => 'c.IDmascota',
-        'estadoCita' => 'c.estadoCita',
+        'IDcita' => 'c.IDcita', 'IDusuario' => 'c.IDusuario',
+        'IDmascota' => 'c.IDmascota', 'estadoCita' => 'c.estadoCita',
     ];
 
     private static function seleccionBase(): string
     {
         return "SELECT c.*,
                        DATE_FORMAT(c.fechaAtencion, '%Y-%m-%dT%H:%i:%s') AS fechaAtencionIso,
-                       m.nombrem,
-                       m.IDcliente,
-                       cli.nombrec,
-                       cli.apellidoc,
+                       m.nombrem, m.IDcliente, cli.nombrec, cli.apellidoc,
                        CONCAT_WS(' ', u.nombre_U, u.apellido_U) AS nombreUsuario,
-                       s.tipoServicio,
-                       (s.tipoServicio = 'Vacunación') AS esVacunacion,
-                       s.descripcion AS descripcionServicio,
-                       s.precio,
+                       (SELECT GROUP_CONCAT(cs.IDservicio ORDER BY cs.IDcitaServicio)
+                          FROM citaServicio cs WHERE cs.IDcita = c.IDcita) AS IDservicios,
+                       (SELECT GROUP_CONCAT(s.tipoServicio ORDER BY cs.IDcitaServicio SEPARATOR ', ')
+                          FROM citaServicio cs INNER JOIN tiposervicios s ON s.IDtiposervicio = cs.IDservicio
+                         WHERE cs.IDcita = c.IDcita) AS tipoServicio,
+                       EXISTS(SELECT 1 FROM citaServicio cs INNER JOIN tiposervicios s ON s.IDtiposervicio = cs.IDservicio
+                              WHERE cs.IDcita = c.IDcita AND s.tipoServicio = 'Vacunación') AS esVacunacion,
+                       (SELECT COALESCE(SUM(cs.duracionAplicada), 0) FROM citaServicio cs
+                         WHERE cs.IDcita = c.IDcita) AS duracionMinutos,
+                       DATE_FORMAT(DATE_ADD(c.fechaAtencion, INTERVAL 15 MINUTE),
+                           '%Y-%m-%dT%H:%i:%s') AS fechaFinIso,
                        (SELECT COUNT(*) FROM historialvac h WHERE h.IDcita = c.IDcita) AS vacunasAplicadas,
-                       (SELECT COUNT(*) FROM pago p WHERE p.IDcita = c.IDcita) AS pagosRegistrados
+                       (SELECT COUNT(DISTINCT dp.IDpago) FROM citaServicio cs
+                          INNER JOIN pagoservicio dp ON dp.IDcitaServicio = cs.IDcitaServicio
+                         WHERE cs.IDcita = c.IDcita) AS pagosRegistrados
                 FROM citas c
                 INNER JOIN mascotas m ON m.IDmascota = c.IDmascota
                 INNER JOIN clientes cli ON cli.IDcliente = m.IDcliente
-                INNER JOIN usuarios u ON u.IDusuario = c.IDusuario
-                INNER JOIN servicios s ON s.IDservicio = c.IDservicio";
+                INNER JOIN usuarios u ON u.IDusuario = c.IDusuario";
     }
 
     public static function mdlMostrarCitas($item = null, $valor = null): mixed
@@ -54,18 +58,25 @@ final class ModeloCitas
     public static function mdlListarServiciosActivos(): array
     {
         return Conexion::conectar()->query(
-            'SELECT IDservicio, tipoServicio, descripcion, precio
-             FROM servicios WHERE estadoServicio = 1 ORDER BY tipoServicio'
+            'SELECT IDtiposervicio AS IDservicio, tipoServicio, descripcion, precio, duracionMinutos
+             FROM tiposervicios WHERE estadoServicio = 1 ORDER BY tipoServicio'
         )->fetchAll();
     }
 
-    public static function mdlServicioActivo(int $idServicio): bool
+    public static function mdlObtenerServiciosActivos(array $ids): array
     {
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+        if ($ids === []) {
+            return [];
+        }
+        $marcadores = implode(',', array_fill(0, count($ids), '?'));
         $stmt = Conexion::conectar()->prepare(
-            'SELECT 1 FROM servicios WHERE IDservicio = :IDservicio AND estadoServicio = 1'
+            "SELECT IDtiposervicio AS IDservicio, tipoServicio, precio, duracionMinutos
+             FROM tiposervicios WHERE estadoServicio = 1 AND IDtiposervicio IN ($marcadores)
+             ORDER BY IDtiposervicio"
         );
-        $stmt->execute([':IDservicio' => $idServicio]);
-        return (bool) $stmt->fetchColumn();
+        $stmt->execute($ids);
+        return $stmt->fetchAll();
     }
 
     public static function mdlIngresarCita(array $datos): string
@@ -75,43 +86,29 @@ final class ModeloCitas
         $adquirido = false;
         try {
             $adquirido = self::adquirirBloqueo($conexion, $bloqueo);
-            if (!$adquirido) {
-                return 'ocupado';
-            }
+            if (!$adquirido) return 'ocupado';
             $conexion->beginTransaction();
-            if (!self::mdlHorarioDisponible(
-                $datos['IDusuario'],
-                $datos['fechaAtencion'],
-                null,
-                $conexion
-            )) {
+            if (!self::mdlHorarioDisponible($datos['IDusuario'], $datos['fechaAtencion'],
+                $datos['duracionMinutos'], null, $conexion)) {
                 $conexion->rollBack();
                 return 'ocupado';
             }
-
             $stmt = $conexion->prepare(
-                'INSERT INTO citas
-                    (motivoCita, estadoCita, fechaAtencion, IDusuario, IDmascota, IDservicio)
-                 VALUES
-                    (:motivoCita, :estadoCita, :fechaAtencion, :IDusuario, :IDmascota, :IDservicio)'
+                'INSERT INTO citas (motivoCita, estadoCita, fechaAtencion, IDusuario, IDmascota)
+                 VALUES (:motivoCita, :estadoCita, :fechaAtencion, :IDusuario, :IDmascota)'
             );
-            $stmt->execute(self::parametrosEscritura($datos));
+            $stmt->execute(self::parametrosCita($datos));
+            self::guardarServicios($conexion, (int) $conexion->lastInsertId(), $datos['servicios'], $datos['estadoCita']);
             $conexion->commit();
             return 'ok';
         } catch (PDOException $e) {
-            if ($conexion->inTransaction()) {
-                $conexion->rollBack();
-            }
+            if ($conexion->inTransaction()) $conexion->rollBack();
             return $e->getCode() === '23000' ? 'relacion_invalida' : 'error';
         } catch (Throwable $e) {
-            if ($conexion->inTransaction()) {
-                $conexion->rollBack();
-            }
+            if ($conexion->inTransaction()) $conexion->rollBack();
             return 'error';
         } finally {
-            if ($adquirido) {
-                self::liberarBloqueo($conexion, $bloqueo);
-            }
+            if ($adquirido) self::liberarBloqueo($conexion, $bloqueo);
         }
     }
 
@@ -122,82 +119,54 @@ final class ModeloCitas
         $adquirido = false;
         try {
             $adquirido = self::adquirirBloqueo($conexion, $bloqueo);
-            if (!$adquirido) {
-                return 'ocupado';
-            }
+            if (!$adquirido) return 'ocupado';
             $conexion->beginTransaction();
-            $stmtActual = $conexion->prepare(
-                'SELECT IDcita, estadoCita FROM citas WHERE IDcita = :IDcita FOR UPDATE'
-            );
-            $stmtActual->execute([':IDcita' => (int) $datos['IDcita']]);
+            $stmtActual = $conexion->prepare('SELECT estadoCita FROM citas WHERE IDcita = :IDcita FOR UPDATE');
+            $stmtActual->execute([':IDcita' => $datos['IDcita']]);
             $actual = $stmtActual->fetch();
-            if (!$actual) {
-                $conexion->rollBack();
-                return 'no_encontrada';
+            if (!$actual) { $conexion->rollBack(); return 'no_encontrada'; }
+            if ($actual['estadoCita'] !== $datos['estadoEsperado']) { $conexion->rollBack(); return 'estado_invalido'; }
+            if (!self::mdlHorarioDisponible($datos['IDusuario'], $datos['fechaAtencion'],
+                $datos['duracionMinutos'], $datos['IDcita'], $conexion)) {
+                $conexion->rollBack(); return 'ocupado';
             }
-            if ($actual['estadoCita'] !== $datos['estadoEsperado']) {
-                $conexion->rollBack();
-                return 'estado_invalido';
-            }
-            if (!self::mdlHorarioDisponible(
-                $datos['IDusuario'],
-                $datos['fechaAtencion'],
-                $datos['IDcita'],
-                $conexion
-            )) {
-                $conexion->rollBack();
-                return 'ocupado';
-            }
-
             $stmt = $conexion->prepare(
-                'UPDATE citas SET
-                    motivoCita = :motivoCita,
-                    estadoCita = :estadoCita,
-                    fechaAtencion = :fechaAtencion,
-                    IDusuario = :IDusuario,
-                    IDmascota = :IDmascota,
-                    IDservicio = :IDservicio
-                 WHERE IDcita = :IDcita'
+                'UPDATE citas SET motivoCita=:motivoCita, estadoCita=:estadoCita,
+                 fechaAtencion=:fechaAtencion, IDusuario=:IDusuario, IDmascota=:IDmascota
+                 WHERE IDcita=:IDcita'
             );
-            $parametros = self::parametrosEscritura($datos);
-            $parametros[':IDcita'] = (int) $datos['IDcita'];
+            $parametros = self::parametrosCita($datos);
+            $parametros[':IDcita'] = $datos['IDcita'];
             $stmt->execute($parametros);
+            $conexion->prepare('DELETE FROM citaServicio WHERE IDcita = :IDcita')
+                ->execute([':IDcita' => $datos['IDcita']]);
+            self::guardarServicios($conexion, $datos['IDcita'], $datos['servicios'], $datos['estadoCita']);
             $conexion->commit();
             return 'ok';
         } catch (PDOException $e) {
-            if ($conexion->inTransaction()) {
-                $conexion->rollBack();
-            }
+            if ($conexion->inTransaction()) $conexion->rollBack();
             return $e->getCode() === '23000' ? 'relacion_invalida' : 'error';
         } catch (Throwable $e) {
-            if ($conexion->inTransaction()) {
-                $conexion->rollBack();
-            }
+            if ($conexion->inTransaction()) $conexion->rollBack();
             return 'error';
         } finally {
-            if ($adquirido) {
-                self::liberarBloqueo($conexion, $bloqueo);
-            }
+            if ($adquirido) self::liberarBloqueo($conexion, $bloqueo);
         }
     }
 
-    public static function mdlHorarioDisponible(
-        int $idUsuario,
-        string $fechaAtencion,
-        ?int $idCitaExcluir = null,
-        ?PDO $conexion = null
-    ): bool {
-        $conexion = $conexion ?? Conexion::conectar();
-        $sql = "SELECT COUNT(*) FROM citas
-                WHERE IDusuario = :IDusuario
-                  AND fechaAtencion = :fechaAtencion
-                  AND estadoCita <> 'Cancelada'";
-        $parametros = [
-            ':IDusuario' => $idUsuario,
-            ':fechaAtencion' => $fechaAtencion,
-        ];
+    public static function mdlHorarioDisponible(int $idUsuario, string $fechaAtencion,
+        int $duracionMinutos, ?int $idCitaExcluir = null, ?PDO $conexion = null): bool
+    {
+        $duracionMinutos = self::DURACION_BLOQUE_MINUTOS;
+        $conexion ??= Conexion::conectar();
+        $sql = "SELECT COUNT(*) FROM citas c
+                WHERE c.IDusuario = :IDusuario AND c.estadoCita <> 'Cancelada'
+                  AND c.fechaAtencion < DATE_ADD(:inicioFin, INTERVAL :duracion MINUTE)
+                  AND DATE_ADD(c.fechaAtencion, INTERVAL 15 MINUTE) > :inicioComparacion";
+        $parametros = [':IDusuario'=>$idUsuario, ':inicioFin'=>$fechaAtencion,
+            ':inicioComparacion'=>$fechaAtencion, ':duracion'=>$duracionMinutos];
         if ($idCitaExcluir !== null) {
-            $sql .= ' AND IDcita <> :IDcita';
+            $sql .= ' AND c.IDcita <> :IDcita';
             $parametros[':IDcita'] = $idCitaExcluir;
         }
         $stmt = $conexion->prepare($sql);
@@ -205,59 +174,56 @@ final class ModeloCitas
         return (int) $stmt->fetchColumn() === 0;
     }
 
-    public static function mdlActualizarEstadoCita(
-        int $idCita,
-        string $estadoActual,
-        string $estadoNuevo
-    ): string {
+    public static function mdlActualizarEstadoCita(int $idCita, string $estadoActual, string $estadoNuevo): string
+    {
+        $conexion = Conexion::conectar();
         try {
-            $stmt = Conexion::conectar()->prepare(
-                'UPDATE citas SET estadoCita = :estadoNuevo
-                 WHERE IDcita = :IDcita AND estadoCita = :estadoActual'
-            );
-            $stmt->execute([
-                ':estadoNuevo' => $estadoNuevo,
-                ':IDcita' => $idCita,
-                ':estadoActual' => $estadoActual,
-            ]);
-            return $stmt->rowCount() === 1 ? 'ok' : 'estado_invalido';
+            $conexion->beginTransaction();
+            $stmt = $conexion->prepare('UPDATE citas SET estadoCita=:nuevo WHERE IDcita=:id AND estadoCita=:actual');
+            $stmt->execute([':nuevo'=>$estadoNuevo, ':id'=>$idCita, ':actual'=>$estadoActual]);
+            if ($stmt->rowCount() !== 1) { $conexion->rollBack(); return 'estado_invalido'; }
+            $estadoDetalle = match ($estadoNuevo) {
+                'Completada' => 'Realizado', 'Cancelada' => 'Cancelado', default => 'Programado'
+            };
+            $conexion->prepare('UPDATE citaServicio SET estadoDetalle=:estado WHERE IDcita=:id')
+                ->execute([':estado'=>$estadoDetalle, ':id'=>$idCita]);
+            $conexion->commit();
+            return 'ok';
         } catch (Throwable $e) {
+            if ($conexion->inTransaction()) $conexion->rollBack();
             return 'error';
         }
     }
 
-    private static function parametrosEscritura(array $datos): array
+    private static function guardarServicios(PDO $conexion, int $idCita, array $servicios, string $estado): void
     {
-        return [
-            ':motivoCita' => $datos['motivoCita'],
-            ':estadoCita' => $datos['estadoCita'],
-            ':fechaAtencion' => $datos['fechaAtencion'],
-            ':IDusuario' => (int) $datos['IDusuario'],
-            ':IDmascota' => (int) $datos['IDmascota'],
-            ':IDservicio' => (int) $datos['IDservicio'],
-        ];
-    }
-
-    private static function nombreBloqueo(int $idUsuario, string $fechaAtencion): string
-    {
-        // GET_LOCK limita el nombre; este formato sigue siendo único y cabe aun con IDs grandes.
-        return 'vlp_c_' . $idUsuario . '_' . sha1($fechaAtencion);
-    }
-
-    private static function adquirirBloqueo(PDO $conexion, string $nombre): bool
-    {
-        $stmt = $conexion->prepare('SELECT GET_LOCK(:nombre, 5)');
-        $stmt->execute([':nombre' => $nombre]);
-        return (int) $stmt->fetchColumn() === 1;
-    }
-
-    private static function liberarBloqueo(PDO $conexion, string $nombre): void
-    {
-        try {
-            $stmt = $conexion->prepare('SELECT RELEASE_LOCK(:nombre)');
-            $stmt->execute([':nombre' => $nombre]);
-        } catch (Throwable $e) {
-            // MariaDB también libera el bloqueo al cerrar la conexión.
+        $estadoDetalle = match ($estado) {
+            'Completada' => 'Realizado', 'Cancelada' => 'Cancelado', default => 'Programado'
+        };
+        $stmt = $conexion->prepare(
+            'INSERT INTO citaServicio
+                (IDcita, IDservicio, duracionAplicada, precioAplicado, estadoDetalle)
+             VALUES (:cita, :servicio, :duracion, :precio, :estado)'
+        );
+        foreach ($servicios as $servicio) {
+            $stmt->execute([':cita'=>$idCita, ':servicio'=>$servicio['IDservicio'],
+                ':duracion'=>$servicio['duracionMinutos'], ':precio'=>$servicio['precio'], ':estado'=>$estadoDetalle]);
         }
     }
+
+    private static function parametrosCita(array $datos): array
+    {
+        return [':motivoCita'=>$datos['motivoCita'], ':estadoCita'=>$datos['estadoCita'],
+            ':fechaAtencion'=>$datos['fechaAtencion'], ':IDusuario'=>$datos['IDusuario'],
+            ':IDmascota'=>$datos['IDmascota']];
+    }
+
+    private static function nombreBloqueo(int $idUsuario, string $fecha): string
+    { return 'vlp_c_' . $idUsuario . '_' . substr($fecha, 0, 10); }
+
+    private static function adquirirBloqueo(PDO $conexion, string $nombre): bool
+    { $s=$conexion->prepare('SELECT GET_LOCK(:n,5)'); $s->execute([':n'=>$nombre]); return (int)$s->fetchColumn()===1; }
+
+    private static function liberarBloqueo(PDO $conexion, string $nombre): void
+    { try { $s=$conexion->prepare('SELECT RELEASE_LOCK(:n)'); $s->execute([':n'=>$nombre]); } catch (Throwable $e) {} }
 }

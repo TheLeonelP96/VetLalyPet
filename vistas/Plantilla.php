@@ -14,7 +14,6 @@
 
     <!-- Bootstrap -->
     <link href="vistas/vendors/bootstrap/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">.
     <!-- Font Awesome -->
     <link href="vistas/vendors/font-awesome/css/font-awesome.min.css" rel="stylesheet">
     <!-- NProgress -->
@@ -23,9 +22,8 @@
     <link href="vistas/vendors/iCheck/skins/flat/green.css" rel="stylesheet">
 
     <link href="vistas/vendors/animate.css/animate.min.css" rel="stylesheet">
-    <link href="
-    https://cdn.jsdelivr.net/npm/sweetalert2@11.26.24/dist/sweetalert2.min.css
-    " rel="stylesheet">
+    <link href="vistas/vendors/sweetalert2/dist/sweetalert2.min.css" rel="stylesheet">
+    <link href="vistas/vendors/select2/dist/css/select2.min.css" rel="stylesheet">
 	
     <!-- bootstrap-progressbar -->
     <link href="vistas/vendors/bootstrap-progressbar/css/bootstrap-progressbar-3.3.4.min.css" rel="stylesheet">
@@ -56,9 +54,10 @@
                     if(isset($_GET["ruta"]))
                     {
                     $ruta = $_GET["ruta"];
-                    $rutasPermitidas = ["Inicio", "Mascotas", "Clientes", "Calendar", "salir", "Vacunas", "HistorialVac", "Pagos"];
+                    $rutasPermitidas = ["Inicio", "Perfil", "Mascotas", "Clientes", "Calendar", "salir", "Vacunas", "HistorialVac", "SeguimientoVac", "Pagos", "ComprobantePago", "Servicios"];
                     if ((int) ($_SESSION["IDrol"] ?? 0) === 1) {
                         $rutasPermitidas[] = "Usuarios";
+                        $rutasPermitidas[] = "Reportes";
                     }
                     if(in_array($ruta, $rutasPermitidas, true))
                     {
@@ -72,7 +71,7 @@
                     }
                     else
                     {
-                    include "modulos/Inicio.php";
+                    include "modulos/Perfil.php";
                     }
                     include "modulos/Footer.php";
                 echo'</div>';
@@ -97,6 +96,8 @@
     <script src="vistas/vendors/jquery/dist/jquery.min.js"></script>
     <!-- Bootstrap -->
     <script src="vistas/vendors/bootstrap/dist/js/bootstrap.min.js"></script>
+    <script src="vistas/vendors/select2/dist/js/select2.full.min.js"></script>
+    <script src="vistas/vendors/select2/dist/js/i18n/es.js"></script>
     <!-- FastClick -->
     <script src="vistas/vendors/fastclick/lib/fastclick.js"></script>
     <!-- NProgress -->
@@ -146,20 +147,21 @@
     <script src="vistas/vendors/jszip/dist/jszip.min.js"></script>
     <script src="vistas/vendors/pdfmake/build/pdfmake.min.js"></script>
     <script src="vistas/vendors/pdfmake/build/vfs_fonts.js"></script>
+    <script src="vistas/vendors/sweetalert2/dist/sweetalert2.all.min.js"></script>
+    <script src="vistas/js/notificaciones.js?v=<?php echo (int) filemtime(__DIR__ . '/js/notificaciones.js'); ?>"></script>
+    <script src="vistas/js/sesion.js?v=<?php echo (int) filemtime(__DIR__ . '/js/sesion.js'); ?>"></script>
     <script src="vistas/js/usuarios.js?v=<?php echo (int) filemtime(__DIR__ . '/js/usuarios.js'); ?>"></script>
     <script src="vistas/js/mascotas.js?v=<?php echo (int) filemtime(__DIR__ . '/js/mascotas.js'); ?>"></script>
     <script src="vistas/js/clientes.js?v=<?php echo (int) filemtime(__DIR__ . '/js/clientes.js'); ?>"></script>
     <script src="vistas/js/citas.js?v=<?php echo (int) filemtime(__DIR__ . '/js/citas.js'); ?>"></script>
     <script src="vistas/js/vacunas.js?v=<?php echo (int) filemtime(__DIR__ . '/js/vacunas.js'); ?>"></script>
+    <script src="vistas/js/servicios.js?v=<?php echo (int) filemtime(__DIR__ . '/js/servicios.js'); ?>"></script>
     <script src="vistas/js/historialVacunas.js?v=<?php echo (int) filemtime(__DIR__ . '/js/historialVacunas.js'); ?>"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="vistas/js/seguimientoVacunas.js?v=<?php echo (int) filemtime(__DIR__ . '/js/seguimientoVacunas.js'); ?>"></script>
     <script src="vistas/js/pagos.js?v=<?php echo (int) filemtime(__DIR__ . '/js/pagos.js'); ?>"></script>
-    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.20/index.global.min.js"></script>
+    <script src="vistas/js/reportes.js?v=<?php echo (int) filemtime(__DIR__ . '/js/reportes.js'); ?>"></script>
+    <script src="vistas/vendors/fullcalendar-6/dist/index.global.min.js"></script>
     <!-- Custom Theme Scripts -->
     <script src="vistas/build/js/custom.min.js"></script>
-    <script src="
-    https://cdn.jsdelivr.net/npm/sweetalert2@11.26.24/dist/sweetalert2.all.min.js
-    "></script>
-    
   </body>
 </html>

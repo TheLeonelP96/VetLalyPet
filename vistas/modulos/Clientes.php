@@ -15,7 +15,7 @@ unset($_SESSION['cliente_flash']);
     <div class="clearfix"></div>
 
     <?php if (is_array($flash)): ?>
-        <div class="alert alert-<?php echo Seguridad::escapar($flash['tipo']); ?> alert-dismissible" role="alert">
+        <div class="app-flash alert alert-<?php echo Seguridad::escapar($flash['tipo']); ?> alert-dismissible" data-tipo="<?php echo Seguridad::escapar($flash['tipo']); ?>" role="alert">
             <button type="button" class="close" data-dismiss="alert">&times;</button>
             <?php echo Seguridad::escapar($flash['mensaje']); ?>
         </div>
@@ -49,13 +49,14 @@ unset($_SESSION['cliente_flash']);
                                             title="Editar">
                                         <i class="fa fa-pencil"></i>
                                     </button>
-                                    <button type="button"
+                                    <?php if ((int) ($_SESSION['IDrol'] ?? 0) === 1): ?><button type="button"
                                             class="btn <?php echo $habilitado ? 'btn-danger' : 'btn-success'; ?> btnEstadoCliente"
                                             data-id="<?php echo (int) $cliente['IDcliente']; ?>"
                                             data-estado="<?php echo $habilitado ? 0 : 1; ?>"
                                             title="<?php echo $habilitado ? 'Deshabilitar' : 'Habilitar'; ?>">
                                         <i class="fa <?php echo $habilitado ? 'fa-ban' : 'fa-check'; ?>"></i>
                                     </button>
+                                    <?php endif; ?>
                                 </div>
                             </td>
                         </tr>

@@ -1,4 +1,5 @@
 <?php
+// Ejecuta las consultas de propietarios y sus datos de contacto.
 
 require_once __DIR__ . '/conexion.php';
 

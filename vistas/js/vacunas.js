@@ -24,6 +24,7 @@
             $("#editarDescripcionVacuna").val(vacuna.Descripcion);
             $("#editarPrecioVacuna").val(vacuna.preciovac);
             $("#editarStockVacuna").val(vacuna.stock);
+            $("#editarStockMinimo").val(vacuna.stockMinimo);
             $("#editarEspecieVacuna").val(vacuna.IDespecie);
             $("#modVacuna").modal("show");
         }).fail(function (xhr) {

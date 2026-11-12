@@ -1,4 +1,5 @@
 <?php
+// Endpoint AJAX para obtener pagos y calcular el detalle cobrable de una cita.
 
 require_once __DIR__ . '/../core/Seguridad.php';
 require_once __DIR__ . '/../controlador/Pagos.controlador.php';

@@ -1,11 +1,12 @@
 <?php
+// Endpoint AJAX para consultar especies y datos del catálogo de vacunas.
 
 require_once __DIR__ . '/../core/Seguridad.php';
 require_once __DIR__ . '/../controlador/Vacunas.controlador.php';
 require_once __DIR__ . '/../modelos/Vacunas.modelos.php';
 
 header('Content-Type: application/json; charset=utf-8');
-Seguridad::exigirAutenticacion(true);
+Seguridad::exigirRol([1], true);
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !Seguridad::validarCsrf()) {
     http_response_code(403);

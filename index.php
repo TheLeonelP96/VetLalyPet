@@ -13,6 +13,11 @@
     require_once "controlador/Vacunas.controlador.php";
     require_once "controlador/HistorialVacunas.controlador.php";
     require_once "controlador/Pagos.controlador.php";
+    require_once "controlador/Servicios.controlador.php";
+    require_once "controlador/SeguimientoVacunas.controlador.php";
+    require_once "controlador/Perfil.controlador.php";
+    require_once "controlador/Alertas.controlador.php";
+    require_once "controlador/Reportes.controlador.php";
 
     require_once "modelos/Mascotas.modelos.php";
     require_once "modelos/Clientes.modelos.php";
@@ -21,6 +26,11 @@
     require_once "modelos/Vacunas.modelos.php";
     require_once "modelos/HistorialVacunas.modelos.php";
     require_once "modelos/Pagos.modelos.php";
+    require_once "modelos/Servicios.modelos.php";
+    require_once "modelos/SeguimientoVacunas.modelos.php";
+    require_once "modelos/Perfil.modelos.php";
+    require_once "modelos/Alertas.modelos.php";
+    require_once "modelos/Reportes.modelos.php";
 
     // Procesar acciones antes de renderizar HTML permite redirigir con seguridad.
     $rutaActual = $_GET['ruta'] ?? '';
@@ -39,6 +49,12 @@
             ControladorHistorialVacunas::ctrProcesarSolicitud();
         } elseif ($rutaActual === 'Pagos') {
             ControladorPagos::ctrProcesarSolicitud();
+        } elseif ($rutaActual === 'Servicios') {
+            ControladorServicios::ctrProcesarSolicitud();
+        } elseif ($rutaActual === 'SeguimientoVac') {
+            ControladorSeguimientoVacunas::ctrProcesarSolicitud();
+        } elseif ($rutaActual === 'Perfil') {
+            ControladorPerfil::ctrProcesarSolicitud();
         } elseif ($rutaActual === '' && (isset($_POST['imgEmail']) || isset($_POST['imgUsuario']))) {
             ControladorUsuarios::ctrIngresarUsuarios();
         }

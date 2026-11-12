@@ -1,4 +1,5 @@
 <?php
+// Recibe y valida las operaciones CRUD del catálogo de vacunas.
 
 final class ControladorVacunas
 {
@@ -29,7 +30,7 @@ final class ControladorVacunas
 
     public static function ctrCrearVacuna(): void
     {
-        Seguridad::exigirAutenticacion();
+        Seguridad::exigirRol([1]);
         Seguridad::exigirCsrf();
         $datos = self::datosFormulario('nueva');
         if ($datos === null) {
@@ -40,7 +41,7 @@ final class ControladorVacunas
 
     public static function ctrEditarVacuna(): void
     {
-        Seguridad::exigirAutenticacion();
+        Seguridad::exigirRol([1]);
         Seguridad::exigirCsrf();
         $idVacuna = filter_var($_POST['IDvacuna'] ?? null, FILTER_VALIDATE_INT);
         $datos = self::datosFormulario('editar');
@@ -54,7 +55,7 @@ final class ControladorVacunas
 
     public static function ctrActualizarEstadoVacuna(): void
     {
-        Seguridad::exigirAutenticacion();
+        Seguridad::exigirRol([1]);
         Seguridad::exigirCsrf();
         $idVacuna = filter_var($_POST['IDvacuna'] ?? null, FILTER_VALIDATE_INT);
         $estado = filter_var($_POST['estadoVacuna'] ?? null, FILTER_VALIDATE_INT);
@@ -89,12 +90,15 @@ final class ControladorVacunas
         $descripcion = trim($_POST[$campos[1]]);
         $precioTexto = str_replace(',', '.', trim($_POST[$campos[2]]));
         $stock = filter_var($_POST[$campos[3]], FILTER_VALIDATE_INT);
+        $campoMinimo = $prefijo === 'nueva' ? 'nuevoStockMinimo' : 'editarStockMinimo';
+        $stockMinimo = filter_var($_POST[$campoMinimo] ?? null, FILTER_VALIDATE_INT);
         $idEspecie = filter_var($_POST[$campos[4]], FILTER_VALIDATE_INT);
         if ($nombre === '' || mb_strlen($nombre) > 50
             || preg_match("/^[\\p{L}\\p{M}0-9 .()\\/,+\\'-]+$/u", $nombre) !== 1
             || $descripcion === '' || mb_strlen($descripcion) > 255
             || !is_numeric($precioTexto) || (float) $precioTexto < 0 || (float) $precioTexto > 99999999.99
             || $stock === false || (int) $stock < 0
+            || $stockMinimo === false || (int) $stockMinimo < 0 || (int) $stockMinimo > 999999
             || $idEspecie === false || !ModeloVacunas::mdlEspecieExiste((int) $idEspecie)) {
             return null;
         }
@@ -103,6 +107,7 @@ final class ControladorVacunas
             'descripcion' => $descripcion,
             'precio' => number_format((float) $precioTexto, 2, '.', ''),
             'stock' => (int) $stock,
+            'stockMinimo' => (int) $stockMinimo,
             'IDespecie' => (int) $idEspecie,
         ];
     }

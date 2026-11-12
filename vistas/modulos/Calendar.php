@@ -3,8 +3,18 @@ $citas = ControladorCitas::ctrMostrarCitas();
 $clientes = ControladorClientes::ctrListarClientesHabilitados();
 $usuarios = array_values(array_filter(
     ControladorUsuarios::ctrMostrarUsuarios(),
-    static fn(array $usuario): bool =>
-        (int) $usuario['IDrol'] === 2 && (int) $usuario['estado_U'] === 1
+    static function (array $usuario): bool {
+        $rolSesion = (int) ($_SESSION['IDrol'] ?? 0);
+        if ((int) $usuario['estado_U'] !== 1) {
+            return false;
+        }
+        if ($rolSesion === 1) {
+            return true;
+        }
+        return (int) $usuario['IDrol'] === 2
+            && ($rolSesion !== 2
+                || (int) $usuario['IDusuario'] === (int) ($_SESSION['IDusuario'] ?? 0));
+    }
 ));
 $servicios = ControladorCitas::ctrListarServiciosActivos();
 $mascotasDisponibles = array_values(array_filter(
@@ -25,15 +35,18 @@ $opcionesClientes = static function (array $lista): void {
 };
 $opcionesVeterinarios = static function (array $lista): void {
     foreach ($lista as $usuario) {
+        $horariosTurno = ['Mañana' => '07:00–13:00', 'Tarde' => '13:00–19:00',
+            'Horario continuo' => '07:00–19:00'];
         echo '<option value="' . (int) $usuario['IDusuario'] . '">'
-            . Seguridad::escapar($usuario['nombre_U'] . ' ' . $usuario['apellido_U'])
+            . Seguridad::escapar($usuario['nombre_U'] . ' ' . $usuario['apellido_U']
+                . ' · ' . $usuario['turno_U'] . ' (' . ($horariosTurno[$usuario['turno_U']] ?? 'sin horario') . ')')
             . '</option>';
     }
 };
 $opcionesServicios = static function (array $lista): void {
     foreach ($lista as $servicio) {
         echo '<option value="' . (int) $servicio['IDservicio'] . '">'
-            . Seguridad::escapar($servicio['tipoServicio'])
+            . Seguridad::escapar($servicio['tipoServicio'] . ' · ' . $servicio['duracionMinutos'] . ' min')
             . '</option>';
     }
 };
@@ -53,6 +66,8 @@ window.mascotasParaCitas = <?php echo json_encode(array_map(
 ), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 window.configuracionCitas = {
     puedeCrear: <?php echo $puedeCrear ? 'true' : 'false'; ?>,
+    idUsuario: <?php echo (int) ($_SESSION['IDusuario'] ?? 0); ?>,
+    idRol: <?php echo (int) ($_SESSION['IDrol'] ?? 0); ?>,
     csrf: <?php echo json_encode(Seguridad::tokenCsrf(), JSON_HEX_TAG | JSON_HEX_AMP); ?>
 };
 </script>
@@ -66,11 +81,12 @@ window.configuracionCitas = {
     <div class="clearfix"></div>
 
     <?php if (is_array($flashCita)): ?>
-        <div class="alert alert-<?php echo Seguridad::escapar($flashCita['tipo']); ?> alert-dismissible" role="alert">
+        <div class="app-flash alert alert-<?php echo Seguridad::escapar($flashCita['tipo']); ?> alert-dismissible" data-tipo="<?php echo Seguridad::escapar($flashCita['tipo']); ?>" role="alert">
             <button type="button" class="close" data-dismiss="alert">&times;</button>
             <?php echo Seguridad::escapar($flashCita['mensaje']); ?>
         </div>
     <?php endif; ?>
+
 
     <?php if (!$puedeCrear): ?>
         <div class="alert alert-warning">
@@ -117,16 +133,17 @@ window.configuracionCitas = {
                            maxlength="75" placeholder="Ej.: Control general" required>
                 </div>
                 <div class="form-group">
-                    <label>Servicio</label>
-                    <select class="form-control input-lg" id="nuevoServicio" name="nuevoServicio" required>
-                        <option value="" selected disabled>Seleccionar servicio</option>
+                    <label>Servicios</label>
+                    <select id="nuevoServicio" name="nuevoServicio[]" class="form-control select-multiple"
+                            multiple required>
                         <?php $opcionesServicios($servicios); ?>
                     </select>
+                    <small class="help-block">Seleccione uno o varios servicios.</small>
                 </div>
                 <div class="form-group">
                     <label>Hora</label>
                     <input type="time" class="form-control input-lg" name="seleccionarHora"
-                           id="seleccionarHora" min="07:00" max="18:30" step="1800" required>
+                           id="seleccionarHora" min="07:00" max="18:45" step="900" required>
                     <small id="disponibilidadNueva" class="help-block"></small>
                 </div>
                 <div class="form-group">
@@ -145,9 +162,9 @@ window.configuracionCitas = {
                     <small id="mensajeMascotasCrear" class="help-block"></small>
                 </div>
                 <div class="form-group">
-                    <label>Veterinario</label>
+                    <label><?php echo (int) ($_SESSION['IDrol'] ?? 0) === 1 ? 'Veterinario asignado' : 'Veterinario'; ?></label>
                     <select class="form-control input-lg" id="nuevoUsuario" name="nuevoUsuario" required>
-                        <option value="" selected disabled>Seleccionar veterinario</option>
+                        <option value="" selected disabled>Seleccionar Veterinario</option>
                         <?php $opcionesVeterinarios($usuarios); ?>
                     </select>
                 </div>
@@ -160,7 +177,7 @@ window.configuracionCitas = {
                 <a href="#" id="btnRegistrarPagoCita" class="btn btn-info" style="display:none">
                     <i class="fa fa-money"></i> Registrar pago
                 </a>
-                <button type="submit" class="btn btn-primary" id="btnGuardarCita" disabled>Guardar cita</button>
+                <button type="submit" class="btn btn-primary" id="btnGuardarCita">Guardar cita</button>
             </div>
         </form>
     </div></div>
@@ -183,11 +200,12 @@ window.configuracionCitas = {
                            name="editarMotivo" maxlength="75" required>
                 </div>
                 <div class="form-group">
-                    <label>Servicio</label>
-                    <select class="form-control input-lg" id="editarServicio" name="editarServicio" required>
-                        <option value="" disabled>Seleccionar servicio</option>
+                    <label>Servicios</label>
+                    <select id="editarServicio" name="editarServicio[]" class="form-control select-multiple"
+                            multiple required>
                         <?php $opcionesServicios($servicios); ?>
                     </select>
+                    <small class="help-block">Seleccione uno o varios servicios.</small>
                 </div>
                 <div class="row">
                     <div class="form-group col-md-6">
@@ -198,7 +216,7 @@ window.configuracionCitas = {
                     <div class="form-group col-md-6">
                         <label>Hora</label>
                         <input type="time" class="form-control input-lg" id="editarHora"
-                               name="editarHora" min="07:00" max="18:30" step="1800" required>
+                               name="editarHora" min="07:00" max="18:45" step="900" required>
                     </div>
                 </div>
                 <small id="disponibilidadEdicion" class="help-block"></small>
@@ -218,9 +236,9 @@ window.configuracionCitas = {
                     <small id="mensajeMascotasEditar" class="help-block"></small>
                 </div>
                 <div class="form-group">
-                    <label>Veterinario</label>
+                    <label><?php echo (int) ($_SESSION['IDrol'] ?? 0) === 1 ? 'Veterinario asignado' : 'Veterinario'; ?></label>
                     <select class="form-control input-lg" id="editarUsuario" name="editarUsuario" required>
-                        <option value="" disabled>Seleccionar veterinario</option>
+                        <option value="" disabled>Seleccionar Veterinario</option>
                         <?php $opcionesVeterinarios($usuarios); ?>
                     </select>
                 </div>
@@ -229,10 +247,11 @@ window.configuracionCitas = {
                 <button type="button" class="btn btn-default pull-left" data-dismiss="modal">Cerrar</button>
                 <button type="submit" id="btnAccionAlterna" class="btn"
                         name="btnAccionCita" value="cancelar" formnovalidate></button>
-                <button type="submit" id="btnCompletarCita" class="btn btn-success"
+                <?php if (in_array((int) ($_SESSION['IDrol'] ?? 0), [1, 2], true)): ?><button type="submit" id="btnCompletarCita" class="btn btn-success"
                         name="btnAccionCita" value="completar" formnovalidate>
                     <i class="fa fa-check"></i> Completar
                 </button>
+                <?php endif; ?>
                 <button type="submit" class="btn btn-warning" id="btnGuardarCambios"
                         name="btnAccionCita" value="guardar">Guardar cambios</button>
             </div>

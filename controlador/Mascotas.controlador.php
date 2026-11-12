@@ -1,11 +1,20 @@
 <?php
+// Coordina el registro y mantenimiento de mascotas y sus relaciones.
 
 final class ControladorMascotas
 {
-    private const SEXOS = ['Macho', 'Hembra', 'No especificado'];
+    private const SEXOS = ['Macho', 'Hembra'];
 
     public static function ctrProcesarSolicitud(): void
     {
+        if (isset($_POST['crearClienteMascota'])) {
+            self::ctrCrearClienteConMascota();
+            return;
+        }
+        if (isset($_POST['crearEspecieRaza'])) {
+            self::ctrCrearEspecieConRaza();
+            return;
+        }
         if (isset($_POST['nuevoMascota'])) {
             self::ctrCrearMascotas();
             return;
@@ -47,6 +56,40 @@ final class ControladorMascotas
         self::responderEscritura($respuesta, 'Mascota registrada correctamente.');
     }
 
+    public static function ctrCrearClienteConMascota(): void
+    {
+        Seguridad::exigirAutenticacion();
+        Seguridad::exigirCsrf();
+        $cliente = self::datosClienteConjunto();
+        $mascota = self::datosMascotaConjunto();
+        if ($cliente === null || $mascota === null) {
+            self::redirigir('danger', 'Revise los datos del cliente y la mascota e intente nuevamente.');
+        }
+
+        $respuesta = ModeloMascotas::mdlCrearClienteConMascota($cliente, $mascota);
+        self::responderEscritura($respuesta, 'Cliente y mascota registrados correctamente.');
+    }
+
+    public static function ctrCrearEspecieConRaza(): void
+    {
+        Seguridad::exigirRol([1]);
+        Seguridad::exigirCsrf();
+        $especie = trim((string) ($_POST['nombreEspecie'] ?? ''));
+        $raza = trim((string) ($_POST['nombreRaza'] ?? ''));
+        if (!self::nombreClasificacionValido($especie) || !self::nombreClasificacionValido($raza)) {
+            self::redirigir('danger', 'Revise los nombres de la especie y la raza.');
+        }
+
+        $respuesta = ModeloMascotas::mdlCrearEspecieConRaza($especie, $raza);
+        if ($respuesta === 'duplicado') {
+            self::redirigir('warning', 'La especie indicada ya está registrada.');
+        }
+        self::redirigir(
+            $respuesta === 'ok' ? 'success' : 'danger',
+            $respuesta === 'ok' ? 'Especie y raza registradas correctamente.' : 'No se pudo registrar la especie y la raza.'
+        );
+    }
+
     public static function ctrModificarMascotas(): void
     {
         Seguridad::exigirAutenticacion();
@@ -65,7 +108,7 @@ final class ControladorMascotas
 
     public static function ctrActualizarEstadoMascota(): void
     {
-        Seguridad::exigirAutenticacion();
+        Seguridad::exigirRol([1]);
         Seguridad::exigirCsrf();
         $idMascota = filter_var($_POST['IDmascota'] ?? null, FILTER_VALIDATE_INT);
         $estado = filter_var($_POST['estadoMascota'] ?? null, FILTER_VALIDATE_INT);
@@ -104,11 +147,11 @@ final class ControladorMascotas
         $campos = $prefijo === 'nuevo'
             ? [
                 'nuevoMascota', 'nuevaFechaRegistro', 'nuevaFechaNacimiento', 'nuevoPeso',
-                'nuevoSexo', 'nuevaDescripcion', 'nuevoColor', 'nuevoCliente', 'nuevaRaza',
+                'nuevoSexo', 'nuevoColor', 'nuevoCliente', 'nuevaRaza',
             ]
             : [
                 'editarMascota', 'editarFechaRegistro', 'editarFechaNacimiento', 'editarPeso',
-                'editarSexo', 'editarDescripcion', 'editarColor', 'editarCliente', 'editarRaza',
+                'editarSexo', 'editarColor', 'editarCliente', 'editarRaza',
             ];
         foreach ($campos as $campo) {
             if (!isset($_POST[$campo]) || !is_string($_POST[$campo])) {
@@ -121,10 +164,10 @@ final class ControladorMascotas
         $nacimiento = trim($_POST[$campos[2]]);
         $pesoTexto = str_replace(',', '.', trim($_POST[$campos[3]]));
         $sexo = trim($_POST[$campos[4]]);
-        $descripcion = trim($_POST[$campos[5]]);
-        $color = trim($_POST[$campos[6]]);
-        $idCliente = filter_var($_POST[$campos[7]], FILTER_VALIDATE_INT);
-        $idRaza = filter_var($_POST[$campos[8]], FILTER_VALIDATE_INT);
+        $descripcion = '';
+        $color = trim($_POST[$campos[5]]);
+        $idCliente = filter_var($_POST[$campos[6]], FILTER_VALIDATE_INT);
+        $idRaza = filter_var($_POST[$campos[7]], FILTER_VALIDATE_INT);
 
         $cliente = $idCliente === false
             ? null
@@ -134,7 +177,7 @@ final class ControladorMascotas
             || $nacimiento > $registro
             || !is_numeric($pesoTexto) || (float) $pesoTexto <= 0 || (float) $pesoTexto > 9999.99
             || !in_array($sexo, self::SEXOS, true)
-            || mb_strlen($descripcion) > 255 || mb_strlen($color) > 50
+            || mb_strlen($color) > 50
             || ($color !== '' && preg_match("/^[\p{L}\p{M} 0-9.,'-]+$/u", $color) !== 1)
             || !is_array($cliente) || (int) $cliente['habilitadoC'] !== 1
             || $idRaza === false || !ModeloMascotas::mdlExisteRaza((int) $idRaza)) {
@@ -152,6 +195,58 @@ final class ControladorMascotas
             'IDcliente' => (int) $idCliente,
             'IDraza' => (int) $idRaza,
         ];
+    }
+
+    private static function datosClienteConjunto(): ?array
+    {
+        $nombre = trim((string) ($_POST['conjuntoNombreCliente'] ?? ''));
+        $apellido = trim((string) ($_POST['conjuntoApellidoCliente'] ?? ''));
+        $telefono = trim((string) ($_POST['conjuntoTelefonoCliente'] ?? ''));
+        $registro = trim((string) ($_POST['conjuntoRegistroCliente'] ?? ''));
+        if (!self::nombrePersonaValido($nombre) || !self::nombrePersonaValido($apellido)
+            || preg_match('/^[0-9+() -]{7,20}$/', $telefono) !== 1
+            || !self::fechaValida($registro)) {
+            return null;
+        }
+        return compact('nombre', 'apellido', 'telefono', 'registro');
+    }
+
+    private static function datosMascotaConjunto(): ?array
+    {
+        $nombre = trim((string) ($_POST['conjuntoNombreMascota'] ?? ''));
+        $registro = trim((string) ($_POST['conjuntoRegistroMascota'] ?? ''));
+        $nacimiento = trim((string) ($_POST['conjuntoNacimientoMascota'] ?? ''));
+        $pesoTexto = str_replace(',', '.', trim((string) ($_POST['conjuntoPesoMascota'] ?? '')));
+        $sexo = trim((string) ($_POST['conjuntoSexoMascota'] ?? ''));
+        $descripcion = '';
+        $color = trim((string) ($_POST['conjuntoColorMascota'] ?? ''));
+        $idRaza = filter_var($_POST['conjuntoRazaMascota'] ?? null, FILTER_VALIDATE_INT);
+        if (!self::nombreMascotaValido($nombre)
+            || !self::fechaValida($registro) || !self::fechaValida($nacimiento) || $nacimiento > $registro
+            || !is_numeric($pesoTexto) || (float) $pesoTexto <= 0 || (float) $pesoTexto > 9999.99
+            || !in_array($sexo, self::SEXOS, true)
+            || mb_strlen($color) > 50
+            || ($color !== '' && preg_match("/^[\p{L}\p{M} 0-9.,'-]+$/u", $color) !== 1)
+            || $idRaza === false || !ModeloMascotas::mdlExisteRaza((int) $idRaza)) {
+            return null;
+        }
+        return [
+            'nombre' => $nombre, 'registro' => $registro, 'nacimiento' => $nacimiento,
+            'peso' => number_format((float) $pesoTexto, 2, '.', ''), 'sexo' => $sexo,
+            'descripcion' => $descripcion, 'color' => $color, 'IDraza' => (int) $idRaza,
+        ];
+    }
+
+    private static function nombrePersonaValido(string $valor): bool
+    {
+        return mb_strlen($valor) >= 2 && mb_strlen($valor) <= 50
+            && preg_match("/^[\p{L}\p{M} .'-]+$/u", $valor) === 1;
+    }
+
+    private static function nombreClasificacionValido(string $valor): bool
+    {
+        return mb_strlen($valor) >= 2 && mb_strlen($valor) <= 50
+            && preg_match("/^[\p{L}\p{M} .'-]+$/u", $valor) === 1;
     }
 
     private static function nombreMascotaValido(string $nombre): bool

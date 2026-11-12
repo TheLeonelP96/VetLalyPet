@@ -27,6 +27,10 @@
         filtrarRazas("#editarEspecie", "#editarRaza");
     });
 
+    $(document).on("change", "#conjuntoEspecieMascota", function () {
+        filtrarRazas("#conjuntoEspecieMascota", "#conjuntoRazaMascota");
+    });
+
     $(document).on("click", ".btnEditMascota", function () {
         $.ajax({
             url: "ajax/mascotas.ajax.php",
@@ -43,7 +47,6 @@
             $("#editarFechaNacimiento").val(mascota.fechaNac_m);
             $("#editarPeso").val(mascota.peso);
             $("#editarSexo").val(mascota.sexo);
-            $("#editarDescripcion").val(mascota.descripcion || "");
             $("#editarColor").val(mascota.color || "");
             $("#editarCliente").val(mascota.IDcliente);
             $("#editarEspecie").val(mascota.IDespecie);
@@ -84,15 +87,21 @@
         });
     });
 
-    $("#modalMascota, #modMascota").on("hidden.bs.modal", function () {
+    $("#modalMascota, #modMascota, #modalClienteMascota, #modalEspecieRaza").on("hidden.bs.modal", function () {
         var formulario = $(this).find("form")[0];
         if (formulario) {
             formulario.reset();
         }
-        var prefijo = this.id === "modalMascota" ? "nueva" : "editar";
-        filtrarRazas("#" + prefijo + "Especie", "#" + prefijo + "Raza");
+        if (this.id === "modalMascota") {
+            filtrarRazas("#nuevaEspecie", "#nuevaRaza");
+        } else if (this.id === "modMascota") {
+            filtrarRazas("#editarEspecie", "#editarRaza");
+        } else if (this.id === "modalClienteMascota") {
+            filtrarRazas("#conjuntoEspecieMascota", "#conjuntoRazaMascota");
+        }
     });
 
     filtrarRazas("#nuevaEspecie", "#nuevaRaza");
     filtrarRazas("#editarEspecie", "#editarRaza");
+    filtrarRazas("#conjuntoEspecieMascota", "#conjuntoRazaMascota");
 })(jQuery);

@@ -2,7 +2,7 @@
     "use strict";
 
     var HORA_INICIO = 7 * 60;
-    var ULTIMA_HORA = 18 * 60 + 30;
+    var ULTIMA_HORA = 18 * 60 + 45;
     var solicitudesDisponibilidad = { crear: null, editar: null };
 
     function tokenCsrf() {
@@ -26,7 +26,7 @@
         }
         var partes = hora.split(":");
         var minutos = Number(partes[0]) * 60 + Number(partes[1]);
-        return minutos >= HORA_INICIO && minutos <= ULTIMA_HORA && minutos % 30 === 0;
+        return minutos >= HORA_INICIO && minutos <= ULTIMA_HORA && minutos % 15 === 0;
     }
 
     function asegurarOpcion($select, valor, texto) {
@@ -87,6 +87,7 @@
             fecha: esEdicion ? $("#fechaCitaEditar").val() : fechaNueva,
             hora: esEdicion ? $("#editarHora").val() : $("#seleccionarHora").val(),
             usuario: esEdicion ? $("#editarUsuario").val() : $("#nuevoUsuario").val(),
+            servicios: (esEdicion ? $("#editarServicio") : $("#nuevoServicio")).val() || [],
             mensaje: esEdicion ? $("#disponibilidadEdicion") : $("#disponibilidadNueva"),
             boton: reactivando
                 ? $("#btnAccionAlterna")
@@ -99,7 +100,9 @@
             .text(texto)
             .toggleClass("text-success", disponible)
             .toggleClass("text-danger", !disponible);
-        controles.boton.prop("disabled", !disponible);
+        // La disponibilidad informa al usuario, pero la validación final debe ejecutarse
+        // en el servidor; por eso no se bloquea el botón cuando el horario está ocupado.
+        controles.boton.prop("disabled", false);
     }
 
     function comprobarDisponibilidad(esEdicion) {
@@ -108,16 +111,20 @@
         if (solicitudesDisponibilidad[modo]) {
             solicitudesDisponibilidad[modo].abort();
         }
-        if (!controles.fecha || !controles.hora || !controles.usuario) {
+        if (!controles.fecha || !controles.hora || !controles.usuario || controles.servicios.length === 0) {
             controles.mensaje.text("").removeClass("text-success text-danger");
-            controles.boton.prop("disabled", true);
+            controles.boton.prop("disabled", false);
             return;
         }
-        if (controles.fecha < hoyLocal() || !esHoraPermitida(controles.hora)) {
+        if (controles.fecha < hoyLocal()) {
+            mostrarDisponibilidad(controles, false, "No se puede programar una cita en una fecha pasada.");
+            return;
+        }
+        if (!esHoraPermitida(controles.hora)) {
             mostrarDisponibilidad(
                 controles,
                 false,
-                "Seleccione una fecha futura y un bloque de 30 minutos entre 07:00 y 18:30."
+                "Seleccione una hora válida en intervalos de 15 minutos."
             );
             return;
         }
@@ -127,6 +134,7 @@
             IDusuario: controles.usuario,
             fechaCita: controles.fecha,
             horaCita: controles.hora,
+            IDservicios: controles.servicios,
             csrf_token: tokenCsrf()
         };
         if (esEdicion) {
@@ -157,6 +165,14 @@
         var $guardar = $("#btnGuardarCambios");
         var $vacunacion = $("#btnRegistrarVacunacionCita");
         var $pago = $("#btnRegistrarPagoCita");
+        var esVacunacion = props.esVacunacion === true;
+        var tieneVacunasAplicadas = Number(props.vacunasAplicadas || 0) > 0;
+        var tienePago = Number(props.pagosRegistrados || 0) > 0;
+        var config = window.configuracionCitas || {};
+        var puedeCompletar = Number(config.idRol) === 1
+            || (Number(config.idRol) === 2 && Number(config.idUsuario) === Number(props.idUsuario));
+        var puedeEditar = Number(config.idRol) !== 2
+            || Number(config.idUsuario) === Number(props.idUsuario);
         $vacunacion.hide();
         $pago.hide();
         $completar.html('<i class="fa fa-check"></i> Completar');
@@ -173,12 +189,18 @@
             $alterno.hide();
             $completar.hide();
             $guardar.hide();
-            if (props.nombreServicio === "Vacunación") {
-                $vacunacion.attr("href", "HistorialVac?cita=" + idCita).show();
+            if (esVacunacion) {
+                $vacunacion.attr("href", "HistorialVac?cita=" + idCita)
+                    .html(tieneVacunasAplicadas
+                        ? '<i class="fa fa-medkit"></i> Ver o añadir vacunas'
+                        : '<i class="fa fa-medkit"></i> Registrar vacunación')
+                    .show();
             }
-            if (props.nombreServicio !== "Vacunación" || props.vacunasAplicadas > 0) {
+            // En citas mixtas que incluyen vacunación, el total todavía no puede
+            // calcularse hasta conocer las vacunas que realmente se aplicaron.
+            if (!esVacunacion || tieneVacunasAplicadas) {
                 $pago.attr("href", "Pagos?cita=" + idCita)
-                    .html(props.pagosRegistrados > 0
+                    .html(tienePago
                         ? '<i class="fa fa-eye"></i> Ver pago'
                         : '<i class="fa fa-money"></i> Registrar pago')
                     .show();
@@ -186,11 +208,11 @@
         } else {
             $alterno.addClass("btn-danger")
                 .html('<i class="fa fa-ban"></i> Cancelar')
-                .val("cancelar").show();
-            $completar.html(props.nombreServicio === "Vacunación"
+                .val("cancelar").toggle(puedeEditar);
+            $completar.html(esVacunacion
                 ? '<i class="fa fa-check"></i> Completar y registrar vacunación'
-                : '<i class="fa fa-check"></i> Completar y cobrar').show();
-            $guardar.show();
+                : '<i class="fa fa-check"></i> Completar y cobrar').toggle(puedeCompletar);
+            $guardar.toggle(puedeEditar);
         }
     }
 
@@ -217,10 +239,12 @@
                     nombreCliente: cita.nombrec + " " + cita.apellidoc,
                     idUsuario: cita.IDusuario,
                     nombreUsuario: cita.nombreUsuario,
-                    idServicio: cita.IDservicio,
+                    idsServicios: String(cita.IDservicios || "").split(",").filter(Boolean),
                     nombreServicio: cita.tipoServicio,
+                    esVacunacion: Number(cita.esVacunacion || 0) === 1,
                     estadoCita: cita.estadoCita,
                     motivo: cita.motivoCita,
+                    duracionMinutos: Number(cita.duracionMinutos || 30),
                     vacunasAplicadas: Number(cita.vacunasAplicadas || 0),
                     pagosRegistrados: Number(cita.pagosRegistrados || 0)
                 }
@@ -232,6 +256,22 @@
         var elemento = document.getElementById("calendar");
         if (!elemento) {
             return;
+        }
+        if ($.fn.select2) {
+            $("#nuevoServicio").select2({
+                width: "100%",
+                placeholder: "Seleccione uno o varios servicios",
+                closeOnSelect: false,
+                language: "es",
+                dropdownParent: $("#modalAgregarCita")
+            });
+            $("#editarServicio").select2({
+                width: "100%",
+                placeholder: "Seleccione uno o varios servicios",
+                closeOnSelect: false,
+                language: "es",
+                dropdownParent: $("#modalEditarCita")
+            });
         }
         // La asociación cliente-mascota funciona aunque el calendario visual falle al iniciar.
         $(document).on("change", "#seleccionarCliente", function () {
@@ -251,9 +291,9 @@
             editable: false,
             slotMinTime: "07:00:00",
             slotMaxTime: "19:00:00",
-            slotDuration: "00:30:00",
-            snapDuration: "00:30:00",
-            defaultTimedEventDuration: "00:30:00",
+            slotDuration: "00:15:00",
+            snapDuration: "00:15:00",
+            defaultTimedEventDuration: "00:15:00",
             businessHours: { startTime: "07:00", endTime: "19:00", daysOfWeek: [0, 1, 2, 3, 4, 5, 6] },
             headerToolbar: {
                 left: "prev,next today",
@@ -279,7 +319,7 @@
                     Swal.fire({
                         icon: "warning",
                         title: "Horario no permitido",
-                        text: "Las citas comienzan cada 30 minutos entre 07:00 y 18:30."
+                        text: "No se pueden programar citas en dias pasados"
                     });
                     calendario.unselect();
                     return;
@@ -299,7 +339,7 @@
                 $("#editarHora").val((partes[1] || "07:00").substring(0, 5));
                 asegurarOpcion($("#editarCliente"), props.idCliente, props.nombreCliente);
                 asegurarOpcion($("#editarUsuario"), props.idUsuario, props.nombreUsuario);
-                asegurarOpcion($("#editarServicio"), props.idServicio, props.nombreServicio);
+                $("#editarServicio").val(props.idsServicios.map(String)).trigger("change.select2");
                 configurarAcciones(props.estadoCita, props, info.event.id);
                 cargarMascotas(props.idCliente, "#editarMascotaSelect", {
                     id: props.idMascota,
@@ -314,10 +354,10 @@
             }
         });
 
-        $(document).on("change input", "#seleccionarHora, #nuevoUsuario", function () {
+        $(document).on("change input", "#seleccionarHora, #nuevoUsuario, #nuevoServicio", function () {
             comprobarDisponibilidad(false);
         });
-        $(document).on("change input", "#fechaCitaEditar, #editarHora, #editarUsuario", function () {
+        $(document).on("change input", "#fechaCitaEditar, #editarHora, #editarUsuario, #editarServicio", function () {
             comprobarDisponibilidad(true);
         });
 
@@ -330,7 +370,7 @@
                 Swal.fire({
                     icon: "error",
                     title: "Hora fuera de atención",
-                    text: "Use bloques de 30 minutos entre 07:00 y 18:30."
+                    text: "Use bloques de 15 minutos dentro del horario de atención."
                 });
             }
         });
@@ -350,13 +390,14 @@
                 Swal.fire({
                     icon: "error",
                     title: "Hora fuera de atención",
-                    text: "Use bloques de 30 minutos entre 07:00 y 18:30."
+                    text: "Use bloques de 15 minutos dentro del horario de atención."
                 });
             }
         });
 
         $("#modalAgregarCita").on("hidden.bs.modal", function () {
             $("#formAgregarCita")[0].reset();
+            $("#nuevoServicio").val(null).trigger("change.select2");
             $("#fechaCitaCrear").val("");
             $("#fechaCitaCrearTexto").text("");
             reiniciarMascotas($("#seleccionarMascota"), "Seleccione primero un cliente");

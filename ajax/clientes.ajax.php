@@ -1,4 +1,5 @@
 <?php
+// Endpoint AJAX para consultas y validaciones del módulo de clientes.
 
 require_once __DIR__ . '/../core/Seguridad.php';
 require_once __DIR__ . '/../controlador/Clientes.controlador.php';

@@ -1,7 +1,7 @@
 <div class="col-md-3 left_col">
     <div class="left_col scroll-view">
     <div class="navbar nav_title" style="border: 0;">
-        <a href="index.html" class="site_title"><i class="fa fa-paw"></i> <span>LalyPet's!</span></a>
+        <a href="Perfil" class="site_title"><i class="fa fa-paw"></i> <span>LalyPet's!</span></a>
     </div>
 
     <div class="clearfix"></div>
@@ -120,14 +120,19 @@
             <li><a><i class="fa fa-desktop"></i> Servicios <span class="fa fa-chevron-down"></span></a>
             <ul class="nav child_menu">
                 <li><a href="Vacunas">Vacunas</a></li>
+                <li><a href="Servicios">Servicios</a></li>
             </ul>
             </li>
             <li><a><i class="fa fa-desktop"></i> Historial <span class="fa fa-chevron-down"></span></a>
             <ul class="nav child_menu">
                 <li><a href="HistorialVac">Historial de vacunas</a></li>
+                <li><a href="SeguimientoVac">Seguimiento de vacunación</a></li>
             </ul>
             </li>
-            <li><a href="Pagos"><i class="fa fa-money"></i> Pagos</a></li>
+                <li><a href="Pagos"><i class="fa fa-money"></i> Pagos</a></li>
+                <?php if ((int) ($_SESSION['IDrol'] ?? 0) === 1): ?>
+                <li><a href="Reportes"><i class="fa fa-bar-chart"></i> Reportes</a></li>
+                <?php endif; ?>
             <!--li><a><i class="fa fa-table"></i> Tables <span class="fa fa-chevron-down"></span></a>
             <ul class="nav child_menu">
                 <li><a href="tables.html">Tables</a></li>
@@ -200,7 +205,7 @@
     <!-- /menu footer buttons -->
     <div class="sidebar-footer hidden-small">
         
-        <a data-toggle="tooltip" data-placement="top" title="Logout" href="salir">
+        <a data-toggle="tooltip" data-placement="top" title="Cerrar sesión" href="salir" class="btnCerrarSesion">
         <span class="glyphicon glyphicon-off" aria-hidden="true"></span>
         </a>
     </div>

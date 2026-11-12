@@ -1,4 +1,5 @@
 <?php
+// Endpoint AJAX para cargar información de usuarios y validar operaciones del módulo.
 
 require_once __DIR__ . '/../core/Seguridad.php';
 require_once __DIR__ . '/../controlador/Usuarios.controlador.php';

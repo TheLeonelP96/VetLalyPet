@@ -1,4 +1,5 @@
 <?php
+// Gestiona el catálogo de vacunas, especies compatibles y existencias.
 
 require_once __DIR__ . '/conexion.php';
 
@@ -50,9 +51,9 @@ final class ModeloVacunas
         try {
             $stmt = Conexion::conectar()->prepare(
                 'INSERT INTO vacuna
-                    (nombreVac, Descripcion, preciovac, stock, estadoVac, IDespecie)
+                    (nombreVac, Descripcion, preciovac, stock, stockMinimo, estadoVac, IDespecie)
                  VALUES
-                    (:nombre, :descripcion, :precio, :stock, 1, :IDespecie)'
+                    (:nombre, :descripcion, :precio, :stock, :stockMinimo, 1, :IDespecie)'
             );
             $stmt->execute(self::parametros($datos));
             return 'ok';
@@ -70,6 +71,7 @@ final class ModeloVacunas
                     Descripcion = :descripcion,
                     preciovac = :precio,
                     stock = :stock,
+                    stockMinimo = :stockMinimo,
                     IDespecie = :IDespecie
                  WHERE IDvacuna = :IDvacuna'
             );
@@ -102,6 +104,7 @@ final class ModeloVacunas
             ':descripcion' => $datos['descripcion'],
             ':precio' => $datos['precio'],
             ':stock' => (int) $datos['stock'],
+            ':stockMinimo' => (int) $datos['stockMinimo'],
             ':IDespecie' => (int) $datos['IDespecie'],
         ];
     }

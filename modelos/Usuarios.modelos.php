@@ -1,4 +1,5 @@
 <?php
+// Accede a usuarios, roles y credenciales usando consultas preparadas.
 
 require_once __DIR__ . '/conexion.php';
 
@@ -52,6 +53,15 @@ final class ModeloUsuarios
     {
         $stmt = Conexion::conectar()->prepare(
             self::seleccionBase() . ' WHERE u.email_U = :correo AND u.estado_U = 1 LIMIT 1'
+        );
+        $stmt->execute([':correo' => $correo]);
+        return $stmt->fetch() ?: null;
+    }
+
+    public static function mdlBuscarPorCorreoSinFiltrarEstado(string $correo): ?array
+    {
+        $stmt = Conexion::conectar()->prepare(
+            self::seleccionBase() . ' WHERE u.email_U = :correo LIMIT 1'
         );
         $stmt->execute([':correo' => $correo]);
         return $stmt->fetch() ?: null;

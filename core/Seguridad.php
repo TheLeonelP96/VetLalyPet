@@ -1,11 +1,12 @@
 <?php
+// Centraliza autenticación, autorización, CSRF y escape de datos para toda la aplicación.
 
-// Toda validación de fechas del sistema debe usar la hora local de Bolivia,
-// independientemente de la zona configurada globalmente en XAMPP/PHP.
+
 date_default_timezone_set('America/La_Paz');
 
 final class Seguridad
 {
+    // Inicia la sesión y aplica medidas básicas contra fijación de sesión.
     public static function iniciarSesion(): void
     {
         if (session_status() === PHP_SESSION_NONE) {
@@ -18,6 +19,7 @@ final class Seguridad
         }
     }
 
+    // Indica si existe un usuario autenticado en la sesión actual.
     public static function autenticado(): bool
     {
         self::iniciarSesion();
@@ -25,6 +27,7 @@ final class Seguridad
             && $_SESSION['IniciarSesion'] === 'ok';
     }
 
+    // Impide continuar a usuarios anónimos y responde según sea HTML o JSON.
     public static function exigirAutenticacion(bool $json = false): void
     {
         if (self::autenticado()) {
@@ -39,6 +42,7 @@ final class Seguridad
         exit;
     }
 
+    // Comprueba que el usuario tenga uno de los roles autorizados.
     public static function exigirRol(array $roles, bool $json = false): void
     {
         self::exigirAutenticacion($json);
@@ -54,6 +58,7 @@ final class Seguridad
         exit;
     }
 
+    // Genera o recupera el token que protege formularios contra CSRF.
     public static function tokenCsrf(): string
     {
         self::iniciarSesion();
@@ -63,12 +68,14 @@ final class Seguridad
         return $_SESSION['csrf_token'];
     }
 
+    // Devuelve el campo HTML oculto con el token CSRF.
     public static function campoCsrf(): string
     {
         return '<input type="hidden" name="csrf_token" value="'
             . self::escapar(self::tokenCsrf()) . '">';
     }
 
+    // Compara el token enviado con el almacenado en la sesión.
     public static function validarCsrf(): bool
     {
         self::iniciarSesion();
@@ -78,6 +85,7 @@ final class Seguridad
             && hash_equals($_SESSION['csrf_token'], $recibido);
     }
 
+    // Detiene la operación cuando la validación CSRF falla.
     public static function exigirCsrf(): void
     {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !self::validarCsrf()) {
@@ -86,11 +94,13 @@ final class Seguridad
         }
     }
 
+    // Escapa texto antes de imprimirlo en HTML para evitar XSS.
     public static function escapar($valor): string
     {
         return htmlspecialchars((string) $valor, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 
+    // Verifica la extensión y el tipo MIME de una imagen cargada.
     public static function tipoImagenSubida(array $archivo): string
     {
         if (($archivo['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK
@@ -107,6 +117,7 @@ final class Seguridad
         return $tipo;
     }
 
+    // Elimina una imagen administrada por el sistema si existe en disco.
     public static function eliminarImagenGuardada(string $rutaRelativa): void
     {
         if ($rutaRelativa === '') {

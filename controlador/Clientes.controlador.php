@@ -1,4 +1,5 @@
 <?php
+// Coordina las altas, modificaciones, consultas e inhabilitaciones de clientes.
 
 final class ControladorClientes
 {
@@ -64,7 +65,7 @@ final class ControladorClientes
 
     public static function ctrActualizarEstadoCliente(): void
     {
-        Seguridad::exigirAutenticacion();
+        Seguridad::exigirRol([1]);
         Seguridad::exigirCsrf();
         $idCliente = filter_var($_POST['IDcliente'] ?? null, FILTER_VALIDATE_INT);
         $estado = filter_var($_POST['estadoCliente'] ?? null, FILTER_VALIDATE_INT);

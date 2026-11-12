@@ -1,4 +1,5 @@
 <?php
+// Abre la conexión PDO única hacia la base de datos vetlalypets.
     class Conexion  
     {       
         static public function Conectar()

@@ -2,7 +2,6 @@
     "use strict";
 
     var detalleNuevo = null;
-    var pagoEditado = null;
 
     function tokenCsrf() {
         return $("meta[name='csrf-token']").attr("content") || "";
@@ -12,48 +11,6 @@
         Swal.fire({ icon: "error", title: "No se pudo completar", text: mensaje });
     }
 
-    function generarQr(selector, idCita, monto) {
-        var elemento = document.querySelector(selector);
-        if (!elemento) {
-            return;
-        }
-        elemento.innerHTML = "";
-        if (typeof window.QRCode !== "function") {
-            elemento.textContent = "No fue posible cargar el generador de QR.";
-            return;
-        }
-        new window.QRCode(elemento, {
-            text: "LALYPETS\nCITA:" + idCita + "\nMONTO:" + monto + " BOB",
-            width: 180,
-            height: 180,
-            colorDark: "#000000",
-            colorLight: "#ffffff"
-        });
-    }
-
-    function actualizarMetodo($metodo) {
-        var $formulario = $metodo.closest("form");
-        var $grupoReferencia = $formulario.find(".referenciaPagoGrupo");
-        var $referencia = $grupoReferencia.find(".referenciaPago");
-        var $grupoQr = $formulario.find(".qrPagoGrupo");
-        var metodo = $metodo.val();
-        var efectivo = metodo === "Efectivo";
-        var esQr = metodo === "QR";
-
-        $referencia.prop("required", !!metodo && !efectivo);
-        $grupoReferencia.toggle(!!metodo && !efectivo);
-        $grupoQr.toggle(esQr);
-        if (efectivo) {
-            $referencia.val("");
-        }
-        if (esQr) {
-            if ($formulario.closest("#modalPago").length && detalleNuevo) {
-                generarQr("#qrPagoNuevo", detalleNuevo.IDcita, detalleNuevo.montoCalculado);
-            } else if (pagoEditado) {
-                generarQr("#qrPagoEditar", pagoEditado.IDcita, pagoEditado.montopago);
-            }
-        }
-    }
 
     function mostrarDetalleCobro(detalle) {
         detalleNuevo = detalle;
@@ -62,21 +19,13 @@
             detalle.nombrem + " · " + detalle.propietario + " · " + detalle.tipoServicio
         );
         var $conceptos = $("#nuevosConceptosPago").empty();
-        if (detalle.tipoServicio === "Vacunación") {
-            $conceptos.append('<h5>Vacunas aplicadas</h5>');
-            $.each(detalle.vacunas || [], function (_, vacuna) {
-                $conceptos.append($("<p>").text(vacuna.nombreVac + " — Bs " + vacuna.preciovac));
-            });
-        } else {
-            $conceptos.append($("<p>").text(detalle.tipoServicio + " — Bs " + detalle.precioServicio));
-        }
-        $("#btnRegistrarPago").prop("disabled", !detalle.cobrable);
-        actualizarMetodo($("#modalPago .metodoPago"));
+        $.each(detalle.conceptos || [], function (_, concepto) {
+            $conceptos.append($("<p>").text(concepto.concepto + " — Bs " + concepto.importe));
+        });
     }
 
     function cargarDetalleCita(idCita) {
         detalleNuevo = null;
-        $("#btnRegistrarPago").prop("disabled", true);
         $("#nuevoMontoPagoVista").val("");
         $("#nuevosConceptosPago").empty();
         if (!idCita) {
@@ -108,8 +57,15 @@
         });
     });
 
-    $(document).on("change", ".metodoPago", function () {
-        actualizarMetodo($(this));
+    $(document).on("submit", "#modalPago form", function (evento) {
+        if (!$("#nuevaCitaPago").val() || !detalleNuevo || detalleNuevo.cobrable !== true) {
+            evento.preventDefault();
+            Swal.fire({
+                icon: "warning",
+                title: "Pago no disponible",
+                text: "Seleccione una cita cobrable y espere a que se calcule el total."
+            });
+        }
     });
 
     $(document).on("click", ".btnEditPago", function () {
@@ -119,16 +75,14 @@
             dataType: "json",
             data: { accion: "pago", IDpago: $(this).data("id"), csrf_token: tokenCsrf() }
         }).done(function (pago) {
-            pagoEditado = pago;
             $("#IDpago").val(pago.IDpago);
             $("#editarMontoPago").val("Bs " + pago.montopago);
             $("#editarMetodoPago").val(pago.metodopago);
-            $("#editarReferenciaPago").val(pago.referenciapago || "");
+            $("#editarUsuarioPago").val(pago.IDusuario);
             $("#editarFechaPago").val(String(pago.fechapago).replace(" ", "T").slice(0, 16));
             $("#editarDetallePago").text(
                 pago.nombrem + " · " + pago.propietario + " · " + pago.tipoServicio
             );
-            actualizarMetodo($("#editarMetodoPago"));
             $("#modPago").modal("show");
         }).fail(function (xhr) {
             mostrarError(xhr.responseJSON && xhr.responseJSON.error
@@ -136,9 +90,7 @@
         });
     });
 
-    $("#modalPago, #modPago").on("shown.bs.modal", function () {
-        actualizarMetodo($(this).find(".metodoPago"));
-    }).on("hidden.bs.modal", function () {
+    $("#modalPago, #modPago").on("hidden.bs.modal", function () {
         var formulario = $(this).find("form")[0];
         if (formulario) {
             formulario.reset();
@@ -147,11 +99,14 @@
             detalleNuevo = null;
             $("#nuevoMontoPagoVista").val("");
             $("#nuevosConceptosPago").empty();
-            $("#btnRegistrarPago").prop("disabled", true);
         }
     });
 
     $(function () {
+        var usuarioActual = Number(window.usuarioPagoActual || 0);
+        if (usuarioActual && $('#nuevoUsuarioPago option[value="' + usuarioActual + '"]').length) {
+            $("#nuevoUsuarioPago").val(String(usuarioActual));
+        }
         var cita = window.citaPagoPreseleccionada;
         if (cita && $('#nuevaCitaPago option[value="' + cita + '"]').length) {
             $("#nuevaCitaPago").val(String(cita));

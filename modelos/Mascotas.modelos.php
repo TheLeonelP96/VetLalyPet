@@ -1,4 +1,5 @@
 <?php
+// Ejecuta las consultas de mascotas y sus relaciones con clientes, especies y razas.
 
 require_once __DIR__ . '/conexion.php';
 
@@ -16,7 +17,9 @@ final class ModeloMascotas
         return "SELECT m.*, c.nombrec, c.apellidoc, c.habilitadoC,
                        r.nombre_Raza, e.IDespecie, e.nombre_Especie,
                        r.nombre_Raza AS raza, e.nombre_Especie AS especie,
-                       TIMESTAMPDIFF(YEAR, m.fechaNac_m, CURDATE()) AS edad
+                       TIMESTAMPDIFF(YEAR, m.fechaNac_m, CURDATE()) AS edad,
+                       TIMESTAMPDIFF(MONTH, m.fechaNac_m, CURDATE()) AS edadMeses,
+                       DATEDIFF(CURDATE(), m.fechaNac_m) AS edadDias
                 FROM mascotas m
                 INNER JOIN clientes c ON c.IDcliente = m.IDcliente
                 INNER JOIN raza r ON r.IDraza = m.IDraza
@@ -96,6 +99,67 @@ final class ModeloMascotas
             return 'ok';
         } catch (PDOException $e) {
             return $e->getCode() === '23000' ? 'relacion_invalida' : 'error';
+        }
+    }
+
+    public static function mdlCrearClienteConMascota(array $cliente, array $mascota): string
+    {
+        $conexion = Conexion::conectar();
+        try {
+            $conexion->beginTransaction();
+            $stmtCliente = $conexion->prepare(
+                'INSERT INTO clientes (nombrec, apellidoc, telefono_c, registro, habilitadoC)
+                 VALUES (:nombre, :apellido, :telefono, :registro, 1)'
+            );
+            $stmtCliente->execute([
+                ':nombre' => $cliente['nombre'],
+                ':apellido' => $cliente['apellido'],
+                ':telefono' => $cliente['telefono'],
+                ':registro' => $cliente['registro'],
+            ]);
+
+            $mascota['IDcliente'] = (int) $conexion->lastInsertId();
+            $stmtMascota = $conexion->prepare(
+                'INSERT INTO mascotas
+                    (nombrem, fecha_Registro, fechaNac_m, peso, sexo, habilitadoM,
+                     descripcion, color, IDcliente, IDraza)
+                 VALUES
+                    (:nombre, :registro, :nacimiento, :peso, :sexo, 1,
+                     :descripcion, :color, :IDcliente, :IDraza)'
+            );
+            $stmtMascota->execute(self::parametros($mascota));
+            $conexion->commit();
+            return 'ok';
+        } catch (PDOException $e) {
+            if ($conexion->inTransaction()) {
+                $conexion->rollBack();
+            }
+            return $e->getCode() === '23000' ? 'relacion_invalida' : 'error';
+        }
+    }
+
+    public static function mdlCrearEspecieConRaza(string $especie, string $raza): string
+    {
+        $conexion = Conexion::conectar();
+        try {
+            $conexion->beginTransaction();
+            $stmtEspecie = $conexion->prepare(
+                'INSERT INTO especie (nombre_Especie) VALUES (:especie)'
+            );
+            $stmtEspecie->execute([':especie' => $especie]);
+            $idEspecie = (int) $conexion->lastInsertId();
+
+            $stmtRaza = $conexion->prepare(
+                'INSERT INTO raza (nombre_Raza, IDespecie) VALUES (:raza, :IDespecie)'
+            );
+            $stmtRaza->execute([':raza' => $raza, ':IDespecie' => $idEspecie]);
+            $conexion->commit();
+            return 'ok';
+        } catch (PDOException $e) {
+            if ($conexion->inTransaction()) {
+                $conexion->rollBack();
+            }
+            return $e->getCode() === '23000' ? 'duplicado' : 'error';
         }
     }
 

@@ -1,4 +1,5 @@
 <?php
+// Endpoint AJAX para cargar clientes, especies y razas de las mascotas.
 
 require_once __DIR__ . '/../core/Seguridad.php';
 require_once __DIR__ . '/../controlador/Mascotas.controlador.php';

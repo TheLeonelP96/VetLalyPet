@@ -1,4 +1,5 @@
 <?php
+// Endpoint AJAX para consultar datos de mascotas, horarios y citas sin recargar la vista.
 
 require_once __DIR__ . '/../core/Seguridad.php';
 require_once __DIR__ . '/../controlador/Citas.controlador.php';
@@ -36,6 +37,7 @@ if ($accion === 'disponibilidad') {
         $_POST['IDusuario'] ?? null,
         $_POST['fechaCita'] ?? null,
         $_POST['horaCita'] ?? null,
+        $_POST['IDservicios'] ?? ($_POST['IDservicio'] ?? null),
         $_POST['IDcitaExcluir'] ?? null
     ));
 }
